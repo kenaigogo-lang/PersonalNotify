@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { buildGameDigestFlex, buildTestFlexMessage } from './line-flex.js';
-import type { DealCardItem } from './types.js';
+import {
+  buildEventReminderFlex,
+  buildEventsNewFlex,
+  buildGameDigestFlex,
+  buildTestFlexMessage,
+} from './line-flex.js';
+import type { DealCardItem, TrackedEvent } from './types.js';
 
 const sampleDeal = (i: number): DealCardItem => ({
   id: `deal_${i}`,
@@ -16,6 +21,25 @@ const sampleDeal = (i: number): DealCardItem => ({
   storeUrl: 'https://store.steampowered.com/app/1245620/',
   priceTrackerUrl: 'https://isthereanydeal.com/game/example/history/',
 });
+
+const sampleEvent: TrackedEvent = {
+  id: 'ev_1',
+  artistId: 'art_1',
+  artistName: 'Aimer',
+  title: 'Aimer 2026 台北小巨蛋演唱會',
+  eventType: 'concert',
+  city: '台北市',
+  venue: '台北小巨蛋',
+  eventDate: '2026-12-20',
+  ticketSaleTime: '2026-12-01T12:00:00+08:00',
+  ticketPlatform: '拓元 tixCraft',
+  sourceUrl: 'https://tixcraft.com/',
+  summary: 'Aimer 台北小巨蛋專場將於 12/1 中午 12 點在拓元開賣。',
+  notifiedNew: false,
+  notifiedBefore1d: false,
+  notifiedBefore1h: false,
+  detectedAt: Date.now(),
+};
 
 describe('LINE Flex Message builders', () => {
   it('builds a single bubble when there is 1 deal', () => {
@@ -36,5 +60,18 @@ describe('LINE Flex Message builders', () => {
     const msg = buildTestFlexMessage('https://personal-notify.vercel.app');
     expect(msg.type).toBe('flex');
     expect(msg.altText).toContain('連線測試成功');
+  });
+
+  it('builds new event and ticket sale reminder Flex messages', () => {
+    const newEv = buildEventsNewFlex([sampleEvent], 'https://personalnotify.vercel.app');
+    expect(newEv.type).toBe('flex');
+    expect(newEv.altText).toContain('Aimer');
+    expect(newEv.contents.type).toBe('bubble');
+
+    const rem1d = buildEventReminderFlex(sampleEvent, 'before_1d');
+    expect(rem1d.altText).toContain('明天開賣');
+
+    const rem1h = buildEventReminderFlex(sampleEvent, 'before_1h');
+    expect(rem1h.altText).toContain('1 小時內開賣');
   });
 });

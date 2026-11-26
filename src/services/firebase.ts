@@ -236,6 +236,17 @@ export const getTrackedEvents = async (uid: string): Promise<TrackedEvent[]> => 
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<TrackedEvent, 'id'>) }));
 };
 
+export const saveTrackedEvent = async (uid: string, event: TrackedEvent): Promise<void> => {
+  if (!db) throw new Error('Firebase 尚未初始化');
+  const { id, ...rest } = event;
+  await setDoc(doc(db, 'users', uid, 'notify_events', id), rest, { merge: true });
+};
+
+export const deleteTrackedEvent = async (uid: string, id: string): Promise<void> => {
+  if (!db) throw new Error('Firebase 尚未初始化');
+  await deleteDoc(doc(db, 'users', uid, 'notify_events', id));
+};
+
 export const getNotifyLogs = async (uid: string): Promise<NotifyLogRecord[]> => {
   if (!db) return [];
   const q = query(collection(db, 'users', uid, 'notify_logs'), orderBy('sentAt', 'desc'), limit(30));

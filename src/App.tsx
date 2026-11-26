@@ -16,6 +16,7 @@ import {
   defaultNotifyConfig,
   deleteOwnedGame,
   deleteTrackedArtist,
+  deleteTrackedEvent,
   deleteWishlistGame,
   formatFirebaseError,
   getGameRankPlayedGames,
@@ -31,6 +32,7 @@ import {
   saveOwnedGame,
   saveOwnedGamesBatch,
   saveTrackedArtist,
+  saveTrackedEvent,
   saveWishlistGame,
   seedStarterArtists,
   signInWithGoogle,
@@ -222,6 +224,26 @@ function AppShell({
     setArtists((prev) => [...prev, ...created]);
   };
 
+  const handleSaveEvent = async (event: TrackedEvent) => {
+    if (!user) return;
+    await saveTrackedEvent(user.uid, event);
+    setEvents((prev) => {
+      const idx = prev.findIndex((e) => e.id === event.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = event;
+        return next;
+      }
+      return [event, ...prev];
+    });
+  };
+
+  const handleDeleteEvent = async (id: string) => {
+    if (!user) return;
+    await deleteTrackedEvent(user.uid, id);
+    setEvents((prev) => prev.filter((e) => e.id !== id));
+  };
+
   return (
     <div className="pn-shell">
       <header className="pn-top">
@@ -349,9 +371,12 @@ function AppShell({
               <ArtistsPage
                 artists={artists}
                 events={events}
+                lastEventSyncAt={config.lastEventSyncAt}
                 onSaveArtist={handleSaveArtist}
                 onDeleteArtist={handleDeleteArtist}
                 onSeedStarter={handleSeedStarterArtists}
+                onSaveEvent={handleSaveEvent}
+                onDeleteEvent={handleDeleteEvent}
               />
             )}
 

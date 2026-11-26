@@ -1,4 +1,4 @@
-import type { DealCardItem } from './types.js';
+import type { DealCardItem, EventType, TrackedEvent } from './types.js';
 import { PLATFORM_LABEL } from './types.js';
 
 export interface LineFlexMessage {
@@ -283,3 +283,214 @@ export const buildTestFlexMessage = (appBaseUrl?: string): LineFlexMessage => {
     contents,
   };
 };
+
+const EVENT_TYPE_LABEL: Record<EventType, string> = {
+  concert: '演唱會',
+  fanmeeting: '見面會',
+  festival: '音樂祭',
+  other: '實體活動',
+};
+
+const formatTaipeiTime = (iso?: string): string => {
+  if (!iso) return '尚未公布';
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return iso;
+  return new Date(ms).toLocaleString('zh-TW', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const buildEventBubble = (
+  event: TrackedEvent,
+  headerBg: string,
+  headerBadge: string,
+  headerTitle: string,
+  appBaseUrl?: string
+): Record<string, unknown> => {
+  const details: Record<string, unknown>[] = [
+    {
+      type: 'text',
+      text: event.title.slice(0, 80),
+      weight: 'bold',
+      size: 'md',
+      wrap: true,
+      color: '#111827',
+    },
+    {
+      type: 'text',
+      text: `地點：${event.city}${event.venue ? ` ・ ${event.venue}` : ''}`,
+      size: 'xs',
+      color: '#374151',
+      wrap: true,
+      margin: 'sm',
+    },
+  ];
+
+  if (event.eventDate) {
+    details.push({
+      type: 'text',
+      text: `活動日期：${event.eventDate}`,
+      size: 'xs',
+      color: '#374151',
+      wrap: true,
+    });
+  }
+
+  details.push({
+    type: 'text',
+    text: `開賣時間：${formatTaipeiTime(event.ticketSaleTime)}`,
+    size: 'sm',
+    weight: 'bold',
+    color: event.ticketSaleTime ? '#D9264E' : '#6B7280',
+    wrap: true,
+    margin: 'xs',
+  });
+
+  if (event.ticketPlatform) {
+    details.push({
+      type: 'text',
+      text: `售票平台：${event.ticketPlatform}`,
+      size: 'xs',
+      color: '#2563EB',
+      wrap: true,
+    });
+  }
+
+  if (event.summary) {
+    details.push({
+      type: 'text',
+      text: event.summary.slice(0, 140),
+      size: 'xs',
+      color: '#6B7280',
+      wrap: true,
+      margin: 'sm',
+    });
+  }
+
+  const footerContents: Record<string, unknown>[] = [];
+  if (event.sourceUrl && /^https?:\/\//i.test(event.sourceUrl)) {
+    footerContents.push({
+      type: 'button',
+      style: 'primary',
+      color: headerBg,
+      height: 'sm',
+      action: {
+        type: 'uri',
+        label: '查看活動 / 售票資訊',
+        uri: event.sourceUrl,
+      },
+    });
+  }
+  if (appBaseUrl && /^https:\/\//i.test(appBaseUrl)) {
+    footerContents.push({
+      type: 'button',
+      style: 'secondary',
+      height: 'sm',
+      action: {
+        type: 'uri',
+        label: '開啟 PersonalNotify',
+        uri: appBaseUrl,
+      },
+    });
+  }
+
+  const bubble: Record<string, unknown> = {
+    type: 'bubble',
+    size: 'kilo',
+    header: {
+      type: 'box',
+      layout: 'vertical',
+      backgroundColor: headerBg,
+      contents: [
+        {
+          type: 'text',
+          text: headerBadge,
+          color: '#FFE14A',
+          weight: 'bold',
+          size: 'xs',
+        },
+        {
+          type: 'text',
+          text: headerTitle.slice(0, 40),
+          color: '#FFFFFF',
+          weight: 'bold',
+          size: 'md',
+          margin: 'xs',
+          wrap: true,
+        },
+      ],
+    },
+    body: {
+      type: 'box',
+      layout: 'vertical',
+      spacing: 'xs',
+      contents: details,
+    },
+  };
+
+  if (footerContents.length > 0) {
+    bubble.footer = {
+      type: 'box',
+      layout: 'vertical',
+      spacing: 'xs',
+      contents: footerContents,
+    };
+  }
+
+  return bubble;
+};
+
+/** 偵測到新的台灣北部藝人活動（可將多筆新活動合併為單一 Carousel 節省額度） */
+export const buildEventsNewFlex = (events: TrackedEvent[], appBaseUrl?: string): LineFlexMessage => {
+  const selected = events.slice(0, 10);
+  const bubbles = selected.map((ev) =>
+    buildEventBubble(
+      ev,
+      '#1F2937',
+      `🎤 台灣北部新活動・${EVENT_TYPE_LABEL[ev.eventType] || '活動'}`,
+      ev.artistName,
+      appBaseUrl
+    )
+  );
+
+  const first = selected[0];
+  const altText =
+    selected.length === 1
+      ? `🎤 【${first.artistName}】台灣北部新活動：${first.title.slice(0, 40)}`
+      : `🎤 偵測到 ${selected.length} 筆台灣北部藝人新活動（${selected.map((e) => e.artistName).slice(0, 3).join('、')}）`;
+
+  return {
+    type: 'flex',
+    altText,
+    contents:
+      bubbles.length === 1
+        ? bubbles[0]
+        : {
+            type: 'carousel',
+            contents: bubbles,
+          },
+  };
+};
+
+/** 開賣前 24 小時 / 開賣前 1 小時搶票警報卡片 */
+export const buildEventReminderFlex = (
+  event: TrackedEvent,
+  kind: 'before_1d' | 'before_1h',
+  appBaseUrl?: string
+): LineFlexMessage => {
+  const isUrgent = kind === 'before_1h';
+  const badge = isUrgent ? '🚨 1 小時內開賣！準備搶票' : '⏰ 明天開賣！搶票提前提醒';
+  const headerBg = isUrgent ? '#DC2626' : '#D97706';
+
+  return {
+    type: 'flex',
+    altText: `${badge}【${event.artistName}】${event.title.slice(0, 40)}`,
+    contents: buildEventBubble(event, headerBg, badge, `${event.artistName} 搶票提醒`, appBaseUrl),
+  };
+};
+

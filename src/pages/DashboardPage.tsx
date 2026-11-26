@@ -123,7 +123,7 @@ export function DashboardPage({
       <section className={ui.panel}>
         <div className="pn-panel-title">
           <span>🎤 近期偵測到的台灣北部活動</span>
-          <span className="pn-badge pri">Phase 2 自動排程就緒</span>
+          <span className="pn-meta">上次活動掃描：{formatTime(config.lastEventSyncAt)}</span>
         </div>
         {events.length === 0 ? (
           <div className="pn-empty">

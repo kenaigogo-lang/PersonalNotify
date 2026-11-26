@@ -7,6 +7,8 @@ import {
   type NotifyConfig,
   type NotifyLogRecord,
   type OwnedGameRecord,
+  type TrackedArtist,
+  type TrackedEvent,
   type WishlistGameRecord,
 } from '../../shared/types.js';
 import { DEFAULT_MONTHLY_LINE_LIMIT, getCurrentMonthKey } from '../../shared/quota.js';
@@ -139,3 +141,47 @@ export const appendNotifyLog = async (uid: string, log: Omit<NotifyLogRecord, 'i
   const db = getAdminDb();
   await db.collection('users').doc(uid).collection('notify_logs').add(log);
 };
+
+export const loadTrackedArtists = async (uid: string): Promise<TrackedArtist[]> => {
+  const db = getAdminDb();
+  const snap = await db.collection('users').doc(uid).collection('notify_artists').get();
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<TrackedArtist, 'id'>) }));
+};
+
+export const loadTrackedEvents = async (uid: string): Promise<TrackedEvent[]> => {
+  const db = getAdminDb();
+  const snap = await db.collection('users').doc(uid).collection('notify_events').get();
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<TrackedEvent, 'id'>) }));
+};
+
+export const upsertTrackedEvent = async (uid: string, event: TrackedEvent): Promise<void> => {
+  const db = getAdminDb();
+  const { id, ...rest } = event;
+  await db
+    .collection('users')
+    .doc(uid)
+    .collection('notify_events')
+    .doc(id)
+    .set(rest, { merge: true });
+};
+
+/** 儲存已送給 Gemini 審核過的文章雜湊（保留最近 600 筆），避免重複消耗 Gemini 免費額度 */
+export const loadSeenArticleHashes = async (uid: string): Promise<Set<string>> => {
+  const db = getAdminDb();
+  const snap = await db.collection('users').doc(uid).collection('notify_config').doc('seen_articles').get();
+  if (!snap.exists) return new Set();
+  const list = snap.data()?.hashes;
+  return new Set(Array.isArray(list) ? list.map(String) : []);
+};
+
+export const saveSeenArticleHashes = async (uid: string, hashes: Set<string>): Promise<void> => {
+  const db = getAdminDb();
+  const trimmed = Array.from(hashes).slice(-600);
+  await db
+    .collection('users')
+    .doc(uid)
+    .collection('notify_config')
+    .doc('seen_articles')
+    .set({ hashes: trimmed, updatedAt: Date.now() }, { merge: true });
+};
+

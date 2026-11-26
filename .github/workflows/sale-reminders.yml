@@ -1,0 +1,40 @@
+name: Ticket Sale Countdown Reminders
+
+on:
+  schedule:
+    # 每小時第 5 分鐘輕量檢查 Firestore（零外部爬蟲呼叫）
+    - cron: '5 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '設為 true 時僅模擬執行，不發送 LINE'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  sale-reminders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ticket sale reminder check
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          TARGET_FIREBASE_UID: ${{ secrets.TARGET_FIREBASE_UID }}
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+          DRY_RUN: ${{ inputs.dry_run == true && '1' || '0' }}
+        run: npm run worker:reminders

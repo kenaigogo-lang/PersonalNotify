@@ -9,7 +9,9 @@
     "typecheck": "tsc --noEmit && tsc -p api/tsconfig.json && tsc -p worker/tsconfig.json",
     "test": "vitest run",
     "preview": "vite preview",
-    "worker:games": "tsx worker/run-games.ts"
+    "worker:games": "tsx worker/run-games.ts",
+    "worker:events": "tsx worker/run-events.ts",
+    "worker:reminders": "tsx worker/run-reminders.ts"
   },
   "dependencies": {
     "firebase": "^11.1.0",

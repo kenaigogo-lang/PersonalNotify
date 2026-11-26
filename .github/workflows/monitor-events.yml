@@ -1,0 +1,42 @@
+name: Monitor Northern Taiwan Artist Events
+
+on:
+  schedule:
+    # 台灣時間 (UTC+8) 每天 09:00、13:00、17:00、21:00 執行
+    - cron: '0 1,5,9,13 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '設為 true 時僅模擬執行，不寫入資料庫亦不發送 LINE'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  monitor-events:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Northern Taiwan artist event monitor
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          TARGET_FIREBASE_UID: ${{ secrets.TARGET_FIREBASE_UID }}
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+          DRY_RUN: ${{ inputs.dry_run == true && '1' || '0' }}
+        run: npm run worker:events
