@@ -1,0 +1,32 @@
+{
+  "name": "personal-notify",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit && tsc -p api/tsconfig.json && tsc -p worker/tsconfig.json",
+    "test": "vitest run",
+    "preview": "vite preview",
+    "worker:games": "tsx worker/run-games.ts"
+  },
+  "dependencies": {
+    "firebase": "^11.1.0",
+    "jose": "^6.0.10",
+    "nes.css": "^2.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "firebase-admin": "^13.0.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11",
+    "vitest": "^3.0.4"
+  }
+}

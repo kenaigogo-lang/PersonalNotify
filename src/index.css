@@ -1,0 +1,16 @@
+/* 兩套主題共用的最小基礎；主題樣式於 src/themes/ 內透過 <html data-theme> 切換 */
+[hidden] {
+  display: none !important;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
