@@ -1,5 +1,5 @@
 import { auth } from './firebase';
-import type { GamePlatform, GameSearchResult } from '../../shared/types';
+import type { ArtistSearchResult, GamePlatform, GameSearchResult } from '../../shared/types';
 
 const authHeaders = async (): Promise<Record<string, string>> => {
   const user = auth?.currentUser;
@@ -39,6 +39,18 @@ export const searchGamesOnline = async (
     headers: await authHeaders(),
   });
   const data = await parseResponse<{ results: GameSearchResult[] }>(res);
+  return data.results || [];
+};
+
+export const searchArtistsOnline = async (q: string): Promise<ArtistSearchResult[]> => {
+  const trimmed = q.trim();
+  if (!trimmed) return [];
+  const params = new URLSearchParams({ q: trimmed });
+  const res = await fetch(`/api/artist-search?${params.toString()}`, {
+    method: 'GET',
+    headers: await authHeaders(),
+  });
+  const data = await parseResponse<{ results: ArtistSearchResult[] }>(res);
   return data.results || [];
 };
 

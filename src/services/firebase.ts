@@ -122,11 +122,28 @@ export const getNotifyConfig = async (uid: string): Promise<NotifyConfig> => {
   return { ...defaults, ...(snap.data() as Partial<NotifyConfig>) };
 };
 
+/** 移除物件中所有 undefined 欄位，避免 Firebase Firestore SDK setDoc 拋出 Unsupported field value: undefined */
+const stripUndefinedDeep = <T>(value: T): T => {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripUndefinedDeep(item)) as unknown as T;
+  }
+  if (value !== null && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v !== undefined) {
+        out[k] = stripUndefinedDeep(v);
+      }
+    }
+    return out as T;
+  }
+  return value;
+};
+
 export const saveNotifyConfig = async (uid: string, patch: Partial<NotifyConfig>): Promise<void> => {
   if (!db) throw new Error('Firebase 尚未初始化');
   await setDoc(
     doc(db, 'users', uid, 'notify_config', 'main'),
-    { ...patch, updatedAt: Date.now() },
+    stripUndefinedDeep({ ...patch, updatedAt: Date.now() }),
     { merge: true }
   );
 };
@@ -138,7 +155,7 @@ export const savePsnSecret = async (
   if (!db) throw new Error('Firebase 尚未初始化');
   await setDoc(
     doc(db, 'users', uid, 'notify_secrets', 'psn'),
-    { ...secret, updatedAt: Date.now() },
+    stripUndefinedDeep({ ...secret, updatedAt: Date.now() }),
     { merge: true }
   );
 };
@@ -160,7 +177,11 @@ export const getOwnedGames = async (uid: string): Promise<OwnedGameRecord[]> => 
 export const saveOwnedGame = async (uid: string, game: OwnedGameRecord): Promise<void> => {
   if (!db) throw new Error('Firebase 尚未初始化');
   const { id, ...rest } = game;
-  await setDoc(doc(db, 'users', uid, 'notify_owned', id), { ...rest, updatedAt: Date.now() }, { merge: true });
+  await setDoc(
+    doc(db, 'users', uid, 'notify_owned', id),
+    stripUndefinedDeep({ ...rest, updatedAt: Date.now() }),
+    { merge: true }
+  );
 };
 
 export const saveOwnedGamesBatch = async (uid: string, games: OwnedGameRecord[]): Promise<void> => {
@@ -169,7 +190,11 @@ export const saveOwnedGamesBatch = async (uid: string, games: OwnedGameRecord[])
     const batch = writeBatch(db);
     for (const game of games.slice(i, i + 400)) {
       const { id, ...rest } = game;
-      batch.set(doc(db, 'users', uid, 'notify_owned', id), { ...rest, updatedAt: Date.now() }, { merge: true });
+      batch.set(
+        doc(db, 'users', uid, 'notify_owned', id),
+        stripUndefinedDeep({ ...rest, updatedAt: Date.now() }),
+        { merge: true }
+      );
     }
     await batch.commit();
   }
@@ -194,7 +219,7 @@ export const saveWishlistGame = async (uid: string, game: WishlistGameRecord): P
   const { id, ...rest } = game;
   await setDoc(
     doc(db, 'users', uid, 'notify_wishlist', id),
-    { ...rest, updatedAt: Date.now() },
+    stripUndefinedDeep({ ...rest, updatedAt: Date.now() }),
     { merge: true }
   );
 };
@@ -210,7 +235,7 @@ export const saveWishlistGamesBatch = async (
       const { id, ...rest } = game;
       batch.set(
         doc(db, 'users', uid, 'notify_wishlist', id),
-        { ...rest, updatedAt: Date.now() },
+        stripUndefinedDeep({ ...rest, updatedAt: Date.now() }),
         { merge: true }
       );
     }
@@ -237,7 +262,7 @@ export const saveTrackedArtist = async (uid: string, artist: TrackedArtist): Pro
   const { id, ...rest } = artist;
   await setDoc(
     doc(db, 'users', uid, 'notify_artists', id),
-    { ...rest, updatedAt: Date.now() },
+    stripUndefinedDeep({ ...rest, updatedAt: Date.now() }),
     { merge: true }
   );
 };
@@ -258,7 +283,11 @@ export const seedStarterArtists = async (uid: string): Promise<TrackedArtist[]> 
   }));
   for (const artist of created) {
     const { id, ...rest } = artist;
-    batch.set(doc(db, 'users', uid, 'notify_artists', id), { ...rest, updatedAt: now }, { merge: true });
+    batch.set(
+      doc(db, 'users', uid, 'notify_artists', id),
+      stripUndefinedDeep({ ...rest, updatedAt: now }),
+      { merge: true }
+    );
   }
   await batch.commit();
   return created;
@@ -275,7 +304,7 @@ export const getTrackedEvents = async (uid: string): Promise<TrackedEvent[]> => 
 export const saveTrackedEvent = async (uid: string, event: TrackedEvent): Promise<void> => {
   if (!db) throw new Error('Firebase 尚未初始化');
   const { id, ...rest } = event;
-  await setDoc(doc(db, 'users', uid, 'notify_events', id), rest, { merge: true });
+  await setDoc(doc(db, 'users', uid, 'notify_events', id), stripUndefinedDeep(rest), { merge: true });
 };
 
 export const deleteTrackedEvent = async (uid: string, id: string): Promise<void> => {

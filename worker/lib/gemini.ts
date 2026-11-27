@@ -95,7 +95,7 @@ export const filterAndExtractNorthernEvents = async (
   }));
 
   const prompt = `你是一個精準的台灣活動監控助理。今天台灣日期是 ${todayTw}。
-目標追蹤人物：${artist.name}（類型：${artist.category}；別名：${artist.aliases.join('、') || '無'}；必須排除的同名人物/關鍵字：${artist.excludeKeywords.join('、') || '無'}）。
+目標追蹤人物：${artist.name}（類型：${artist.category}${artist.description ? `；簡介：${artist.description}` : ''}；別名：${artist.aliases.join('、') || '無'}；必須排除的同名人物/關鍵字：${artist.excludeKeywords.join('、') || '無'}）。
 
 請審查以下候選文章清單，**只挑選出符合以下全部條件的活動**：
 1. 確認主角真的是目標人物「${artist.name}」（排除任何同名不同人，例如日本歌手 LiSA 絕對不是 BLACKPINK 的 Lisa）。

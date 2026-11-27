@@ -113,6 +113,8 @@ export interface TrackedArtist {
   aliases: string[];
   excludeKeywords: string[];
   officialNewsUrl?: string;
+  imageUrl?: string;
+  description?: string;
   enabled: boolean;
   createdAt: number;
   updatedAt?: number;
@@ -230,3 +232,19 @@ export interface GameSearchResult {
   igdbId?: number;
   source: 'steam' | 'igdb';
 }
+
+export interface ArtistSearchResult {
+  id: string;
+  name: string;
+  disambiguation?: string;
+  category: ArtistCategory;
+  description: string;
+  extract?: string;
+  aliases: string[];
+  excludeKeywords: string[];
+  officialNewsUrl?: string;
+  imageUrl?: string;
+  wikiUrl?: string;
+  source: 'wikipedia' | 'wikidata';
+}
+
