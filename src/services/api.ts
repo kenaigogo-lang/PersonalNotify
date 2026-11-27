@@ -52,3 +52,14 @@ export const resolveSteamAppTitles = async (appIds: number[]): Promise<Record<st
   const data = await parseResponse<{ titles: Record<string, string> }>(res);
   return data.titles || {};
 };
+
+export const verifyPsnNpsso = async (
+  npsso: string
+): Promise<{ ok: boolean; refreshToken: string; expiresAt: number; purchasedSampleCount: number }> => {
+  const res = await fetch('/api/psn-verify', {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: JSON.stringify({ npsso }),
+  });
+  return parseResponse(res);
+};

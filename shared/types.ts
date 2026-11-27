@@ -44,8 +44,16 @@ export interface ExternalGameIds {
   steamAppId?: number;
   itadId?: string;
   psnTitleId?: string;
+  psnConceptId?: string;
+  psnProductId?: string;
   switchNsuid?: string;
   igdbId?: number;
+}
+
+export interface PsnSecretDoc {
+  refreshToken: string;
+  expiresAt: number; // unix ms
+  updatedAt: number;
 }
 
 export interface OwnedGameRecord {
@@ -155,6 +163,7 @@ export interface NotifyConfig {
   monthlyLineMonth: string; // YYYY-MM
   psnTokenStatus?: 'unset' | 'active' | 'expiring_soon' | 'expired';
   psnTokenExpiresAt?: number | null;
+  lastPsnAlertAt?: number | null;
   lastGameSyncAt?: number | null;
   lastEventSyncAt?: number | null;
   updatedAt?: number;

@@ -128,6 +128,12 @@ export const isGameOwned = (
       if (cIds.psnTitleId && oIds.psnTitleId && cIds.psnTitleId === oIds.psnTitleId) {
         return { owned: true, reason: 'platform_id', matchedTitle: owned.title, matchedSource: owned.source };
       }
+      if (cIds.psnConceptId && oIds.psnConceptId && cIds.psnConceptId === oIds.psnConceptId) {
+        return { owned: true, reason: 'platform_id', matchedTitle: owned.title, matchedSource: owned.source };
+      }
+      if (cIds.psnProductId && oIds.psnProductId && cIds.psnProductId === oIds.psnProductId) {
+        return { owned: true, reason: 'platform_id', matchedTitle: owned.title, matchedSource: owned.source };
+      }
       if (cIds.switchNsuid && oIds.switchNsuid && cIds.switchNsuid === oIds.switchNsuid) {
         return { owned: true, reason: 'platform_id', matchedTitle: owned.title, matchedSource: owned.source };
       }

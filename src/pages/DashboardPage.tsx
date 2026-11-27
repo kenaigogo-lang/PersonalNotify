@@ -85,7 +85,8 @@ export function DashboardPage({
           <span className="pn-stat-label">統一擁有庫</span>
           <span className="pn-stat-val">{ownedGames.length}</span>
           <span className="pn-stat-sub">
-            Steam {ownedGames.filter((g) => g.source === 'steam').length} ・ 手動/Switch{' '}
+            Steam {ownedGames.filter((g) => g.source === 'steam').length} ・ PSN{' '}
+            {ownedGames.filter((g) => g.source === 'psn').length} ・ 手動/Switch{' '}
             {ownedGames.filter((g) => g.source === 'manual').length}
           </span>
         </div>
@@ -98,6 +99,14 @@ export function DashboardPage({
           </span>
         </div>
       </div>
+
+      {(config.psnTokenStatus === 'expiring_soon' || config.psnTokenStatus === 'expired') && (
+        <div className={`pn-alert ${config.psnTokenStatus === 'expired' ? 'err' : ''}`}>
+          {config.psnTokenStatus === 'expired'
+            ? '❌ 你的 PSN 授權憑證已過期，請前往「設定＆LINE測試」重新貼上新的 npsso。'
+            : '⚠️ 你的 PSN 授權憑證即將到期，請記得前往「設定＆LINE測試」更新 npsso。'}
+        </div>
+      )}
 
       <section className={ui.panel}>
         <div className="pn-panel-title">

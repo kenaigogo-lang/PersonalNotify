@@ -131,6 +131,23 @@ export const saveNotifyConfig = async (uid: string, patch: Partial<NotifyConfig>
   );
 };
 
+export const savePsnSecret = async (
+  uid: string,
+  secret: { refreshToken: string; expiresAt: number }
+): Promise<void> => {
+  if (!db) throw new Error('Firebase 尚未初始化');
+  await setDoc(
+    doc(db, 'users', uid, 'notify_secrets', 'psn'),
+    { ...secret, updatedAt: Date.now() },
+    { merge: true }
+  );
+};
+
+export const deletePsnSecret = async (uid: string): Promise<void> => {
+  if (!db) throw new Error('Firebase 尚未初始化');
+  await deleteDoc(doc(db, 'users', uid, 'notify_secrets', 'psn'));
+};
+
 /** ── Owned Games ── */
 export const getOwnedGames = async (uid: string): Promise<OwnedGameRecord[]> => {
   if (!db) return [];

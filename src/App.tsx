@@ -15,6 +15,7 @@ import {
   createDocId,
   defaultNotifyConfig,
   deleteOwnedGame,
+  deletePsnSecret,
   deleteTrackedArtist,
   deleteTrackedEvent,
   deleteWishlistGame,
@@ -31,6 +32,7 @@ import {
   saveNotifyConfig,
   saveOwnedGame,
   saveOwnedGamesBatch,
+  savePsnSecret,
   saveTrackedArtist,
   saveTrackedEvent,
   saveWishlistGame,
@@ -392,7 +394,27 @@ function AppShell({
             )}
 
             {tab === 'settings' && (
-              <SettingsPage uid={user.uid} config={config} onSaveConfig={handleSaveConfig} />
+              <SettingsPage
+                uid={user.uid}
+                config={config}
+                onSaveConfig={handleSaveConfig}
+                onConnectPsn={async (secret) => {
+                  await savePsnSecret(user.uid, secret);
+                  await handleSaveConfig({
+                    psnTokenStatus: 'active',
+                    psnTokenExpiresAt: secret.expiresAt,
+                    lastPsnAlertAt: null,
+                  });
+                }}
+                onDisconnectPsn={async () => {
+                  await deletePsnSecret(user.uid);
+                  await handleSaveConfig({
+                    psnTokenStatus: 'unset',
+                    psnTokenExpiresAt: null,
+                    lastPsnAlertAt: null,
+                  });
+                }}
+              />
             )}
           </>
         )}

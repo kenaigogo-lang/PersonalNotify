@@ -185,3 +185,27 @@ export const saveSeenArticleHashes = async (uid: string, hashes: Set<string>): P
     .set({ hashes: trimmed, updatedAt: Date.now() }, { merge: true });
 };
 
+export const loadPsnSecret = async (
+  uid: string
+): Promise<{ refreshToken: string; expiresAt: number; updatedAt: number } | null> => {
+  const db = getAdminDb();
+  const snap = await db.collection('users').doc(uid).collection('notify_secrets').doc('psn').get();
+  if (!snap.exists) return null;
+  const data = snap.data();
+  if (!data?.refreshToken) return null;
+  return {
+    refreshToken: String(data.refreshToken),
+    expiresAt: Number(data.expiresAt || 0),
+    updatedAt: Number(data.updatedAt || 0),
+  };
+};
+
+export const savePsnSecret = async (
+  uid: string,
+  secret: { refreshToken: string; expiresAt: number; updatedAt: number }
+): Promise<void> => {
+  const db = getAdminDb();
+  await db.collection('users').doc(uid).collection('notify_secrets').doc('psn').set(secret, { merge: true });
+};
+
+

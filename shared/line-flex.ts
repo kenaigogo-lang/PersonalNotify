@@ -494,3 +494,78 @@ export const buildEventReminderFlex = (
   };
 };
 
+/** 系統警報卡片（例如 PSN Refresh Token 即將到期或已過期提醒） */
+export const buildSystemAlertFlex = (
+  title: string,
+  bodyText: string,
+  appBaseUrl?: string
+): LineFlexMessage => {
+  const contents: Record<string, unknown> = {
+    type: 'bubble',
+    size: 'kilo',
+    header: {
+      type: 'box',
+      layout: 'vertical',
+      backgroundColor: '#B45309',
+      contents: [
+        {
+          type: 'text',
+          text: '⚠️ PERSONAL NOTIFY 系統提醒',
+          color: '#FEF3C7',
+          weight: 'bold',
+          size: 'xs',
+        },
+        {
+          type: 'text',
+          text: title.slice(0, 40),
+          color: '#FFFFFF',
+          weight: 'bold',
+          size: 'md',
+          margin: 'xs',
+          wrap: true,
+        },
+      ],
+    },
+    body: {
+      type: 'box',
+      layout: 'vertical',
+      contents: [
+        {
+          type: 'text',
+          text: bodyText,
+          size: 'sm',
+          color: '#374151',
+          wrap: true,
+        },
+      ],
+    },
+  };
+
+  if (appBaseUrl && /^https:\/\//i.test(appBaseUrl)) {
+    contents.footer = {
+      type: 'box',
+      layout: 'vertical',
+      contents: [
+        {
+          type: 'button',
+          style: 'primary',
+          color: '#212529',
+          height: 'sm',
+          action: {
+            type: 'uri',
+            label: '前往設定頁更新',
+            uri: appBaseUrl,
+          },
+        },
+      ],
+    };
+  }
+
+  return {
+    type: 'flex',
+    altText: `⚠️ PersonalNotify：${title}`,
+    contents,
+  };
+};
+
+

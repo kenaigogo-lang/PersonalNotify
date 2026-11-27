@@ -2,20 +2,24 @@
 
 個人化遊戲特價（Steam / PS5 / Switch）與台灣北部藝人活動（演唱會／見面會）通知系統，透過 **LINE Messaging API** 直接推播到個人聊天室，並與 [GameRank](https://github.com/kenaigogo-lang/GameRank) 共用 Firebase 專案自動去重。
 
-## Phase 1 已完成功能
+## 已完成功能（Phase 1 ～ Phase 4）
 
 - **復古雙主題介面**（紅白機 NES.css / 街機 CRT 霓虹一鍵切換），與 GameRank 風格一致。
 - **共用 GameRank Firebase 專案**：登入同一 Google 帳號後，自動唯讀載入 `users/{uid}/backups/*` 已玩紀錄，完全不影響 GameRank 原資料與安全規則。
 - **LINE Messaging API 推播與配額保護**：
   - 設定頁一鍵發送「LINE 測試推播卡片」（`/api/line-test`）。
-  - 遊戲特價自動彙整成單一 Flex Carousel 卡片（最多 10 款只消耗 1 則免費額度），並內建每月 200 則免費額度保護閥（達 170 則自動切換高優先模式）。
-- **Steam 自動同步＋IsThereAnyDeal 史低判斷**：
-  - 自動同步 Steam 已擁有庫（`GetOwnedGames`）與願望清單（`IWishlistService/GetWishlist/v1`）。
-  - 透過 IsThereAnyDeal API 取得台灣區價格與「歷史最低價（史低）」，無 ITAD Key 時自動降級走 Steam Store API。
-- **友善的 Switch / 手動擁有庫管理**：支援線上搜尋補全封面、一鍵標記「已擁有／願望清單」、批次貼上多行匯入，以及在願望清單卡片上一鍵「✓ 已入手」。
-- **藝人追蹤清單介面（預備 Phase 2）**：支援自由擴充歌手／演員／團體、別名與防撞名排除詞，內建一鍵載入 LiSA / Aimer / milet / 陳忻玥預設清單。
+  - 三平台遊戲特價自動彙整成單一 Flex Carousel 卡片（最多 10 款只消耗 1 則免費額度），內建每月 200 則免費額度保護閥（達 170 則自動切換高優先模式）。
+- **Steam 私人帳號匯入＋IsThereAnyDeal 史低判斷**：
+  - Steam 檔案可全程維持「私人」，透過「🔒 Steam 私人帳號匯入」貼上 `store.steampowered.com/dynamicstore/userdata/` JSON 一鍵同步已擁有庫＋願望清單。
+  - 透過 IsThereAnyDeal API 取得台灣區即時折扣與精準「歷史最低價（史低）」。
+- **PS5 / PSN 整合**：
+  - 在設定頁貼上 Sony `npsso` token 即刻換取約 2 個月效期之 `refreshToken`（`/api/psn-verify`），到期前 5 天自動發 LINE 提醒更新。
+  - 透過 `psn-api` 自動同步 PS4/PS5 已購買數位庫與已遊玩實體片清單納入去重，並查詢台灣 PS Store 即時折扣＋附 PlatPrices 史低曲線按鈕。
+- **Switch 友善擁有庫管理＋多區比價（TW / JP / HK / US / MX）**：
+  - 支援線上搜尋補全封面、一鍵標記「已擁有／願望清單」、批次貼上多行匯入、貼上任天堂商店連結自動擷取 14 碼 NSUID。
+  - 每日自動比對勾選區域的 eShop 價格並依即時匯率換算台幣，挑出最便宜區域推播並標註付款方式（台灣直刷／日美港墨點數卡）＋附 Deku Deals 史低曲線連結。
 - **GitHub Actions 定時排程**：
-  - [daily-games.yml](.github/workflows/daily-games.yml)：每日台灣時間 10:00 與 20:00 自動同步查價並推播。
+  - [daily-games.yml](.github/workflows/daily-games.yml)：每日台灣時間 10:00 與 20:00 自動執行三平台同步、去重與特價推播。
   - [monitor-events.yml](.github/workflows/monitor-events.yml)：每日台灣時間 09:00 / 13:00 / 17:00 / 21:00 掃描 Google News RSS + KKTIX + 藝人官網，經 Gemini 嚴格過濾「台灣北部（台北、新北、桃園、基隆、新竹）」可見本人之實體活動並即時推播。
   - [sale-reminders.yml](.github/workflows/sale-reminders.yml)：每小時輕量檢查 Firestore，於開賣前 24 小時與前 1 小時自動發送 LINE 搶票警報。
 

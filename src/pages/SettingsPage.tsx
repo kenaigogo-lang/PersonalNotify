@@ -1,23 +1,35 @@
 import { useState } from 'react';
 import { SWITCH_REGIONS, type NotifyConfig, type SwitchRegion } from '../../shared/types';
-import { sendLineTestPush } from '../services/api';
+import { sendLineTestPush, verifyPsnNpsso } from '../services/api';
 import { useUi } from '../theme';
 
 interface SettingsPageProps {
   uid: string;
   config: NotifyConfig;
   onSaveConfig: (patch: Partial<NotifyConfig>) => Promise<void>;
+  onConnectPsn: (secret: { refreshToken: string; expiresAt: number }) => Promise<void>;
+  onDisconnectPsn: () => Promise<void>;
 }
 
 const REGION_ORDER: SwitchRegion[] = ['TW', 'JP', 'HK', 'US', 'MX'];
 
-export function SettingsPage({ uid, config, onSaveConfig }: SettingsPageProps) {
+export function SettingsPage({
+  uid,
+  config,
+  onSaveConfig,
+  onConnectPsn,
+  onDisconnectPsn,
+}: SettingsPageProps) {
   const ui = useUi();
   const [lineUserId, setLineUserId] = useState(config.lineUserId);
   const [steamId, setSteamId] = useState(config.steamId);
   const [defaultMinDiscount, setDefaultMinDiscount] = useState(String(config.defaultMinDiscount));
   const [notifyOnHistoricalLow, setNotifyOnHistoricalLow] = useState(config.notifyOnHistoricalLow);
   const [switchRegions, setSwitchRegions] = useState<SwitchRegion[]>(config.switchRegions);
+
+  // PSN npsso 連結表單（僅作一次交換，不顯示已存 token 明碼）
+  const [npssoInput, setNpssoInput] = useState('');
+  const [verifyingPsn, setVerifyingPsn] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [testingLine, setTestingLine] = useState(false);
@@ -68,6 +80,39 @@ export function SettingsPage({ uid, config, onSaveConfig }: SettingsPageProps) {
     }
   };
 
+  const handleConnectPsn = async () => {
+    if (!npssoInput.trim()) return;
+    setVerifyingPsn(true);
+    setStatusMsg(null);
+    try {
+      const res = await verifyPsnNpsso(npssoInput);
+      await onConnectPsn({ refreshToken: res.refreshToken, expiresAt: res.expiresAt });
+      setNpssoInput('');
+      const days = Math.max(1, Math.round((res.expiresAt - Date.now()) / (24 * 60 * 60 * 1000)));
+      setStatusMsg({
+        kind: 'ok',
+        text: `✅ PSN 連結成功！憑證有效約 ${days} 天（到期前 5 天會自動發 LINE 提醒），下次排程將自動同步 PS4/PS5 購買庫。`,
+      });
+    } catch (err) {
+      setStatusMsg({ kind: 'err', text: `PSN 驗證失敗：${(err as Error).message}` });
+    } finally {
+      setVerifyingPsn(false);
+    }
+  };
+
+  const handleDisconnectPsn = async () => {
+    setVerifyingPsn(true);
+    setStatusMsg(null);
+    try {
+      await onDisconnectPsn();
+      setStatusMsg({ kind: 'ok', text: '已移除雲端儲存的 PSN 憑證。' });
+    } catch (err) {
+      setStatusMsg({ kind: 'err', text: `解除連結失敗：${(err as Error).message}` });
+    } finally {
+      setVerifyingPsn(false);
+    }
+  };
+
   const handleCopyUid = async () => {
     try {
       await navigator.clipboard.writeText(uid);
@@ -77,6 +122,20 @@ export function SettingsPage({ uid, config, onSaveConfig }: SettingsPageProps) {
       // 忽略瀏覽器剪貼簿限制
     }
   };
+
+  const psnDaysLeft =
+    config.psnTokenExpiresAt && config.psnTokenExpiresAt > Date.now()
+      ? Math.ceil((config.psnTokenExpiresAt - Date.now()) / (24 * 60 * 60 * 1000))
+      : 0;
+
+  const psnBadge =
+    config.psnTokenStatus === 'active'
+      ? { cls: 'ok', text: `✅ 已連結（剩約 ${psnDaysLeft} 天）` }
+      : config.psnTokenStatus === 'expiring_soon'
+        ? { cls: 'warn', text: `⚠️ 即將到期（剩約 ${psnDaysLeft} 天）` }
+        : config.psnTokenStatus === 'expired'
+          ? { cls: 'hot', text: '❌ 已過期，請重新貼上' }
+          : { cls: '', text: '尚未連結' };
 
   return (
     <form onSubmit={(e) => void handleSave(e)} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -104,12 +163,73 @@ export function SettingsPage({ uid, config, onSaveConfig }: SettingsPageProps) {
             className={ui.input}
             value={lineUserId}
             onChange={(e) => setLineUserId(e.target.value)}
-            placeholder="U32ac8f3e19705ed51c36f6b8c7bb2830"
+            placeholder="LINE Developers Console -> Basic settings 的 Your user ID"
           />
           <p className="pn-hint">
             Channel Access Token 請設定在 Vercel 環境變數與 GitHub Actions Secrets 的{' '}
             <code>LINE_CHANNEL_ACCESS_TOKEN</code>（不寫進網頁前端以保安全）。
           </p>
+        </div>
+      </section>
+
+      <section className={ui.panel}>
+        <div className="pn-panel-title">
+          <span>🎯 PS5 / PSN 帳號連動（同步已購買數位庫＆已玩實體片）</span>
+          <span className={`pn-badge ${psnBadge.cls}`}>{psnBadge.text}</span>
+        </div>
+
+        <ol className="pn-hint" style={{ paddingLeft: 20, marginBottom: 12 }}>
+          <li>
+            先在同一個瀏覽器登入{' '}
+            <a href="https://www.playstation.com/zh-hant-tw/" target="_blank" rel="noreferrer">
+              PlayStation 官網
+            </a>
+            。
+          </li>
+          <li>
+            打開{' '}
+            <a href="https://ca.account.sony.com/api/v1/ssocookie" target="_blank" rel="noreferrer">
+              ca.account.sony.com/api/v1/ssocookie
+            </a>
+            ，直接把畫面上的整段 <code>{'{"npsso":"..."}'}</code>（或中間 64 碼）複製貼到下方。
+          </li>
+          <li>
+            系統會即時換成有效期約 2 個月的 <code>refreshToken</code> 加密存於你本人專屬的 Firestore
+            子文件，並在到期前 5 天自動發 LINE 通知你更新。
+          </li>
+        </ol>
+
+        <div className="pn-row">
+          <div className="pn-field" style={{ flex: 2 }}>
+            <label htmlFor="set-psn-npsso">貼上 PSN npsso（輸入後即刻交換並清空，不顯示明碼）</label>
+            <input
+              id="set-psn-npsso"
+              type="password"
+              className={ui.input}
+              value={npssoInput}
+              onChange={(e) => setNpssoInput(e.target.value)}
+              placeholder='貼上 {"npsso":"..."} 或 64 碼字串'
+              autoComplete="off"
+            />
+          </div>
+          <button
+            type="button"
+            className={ui.btnPrimary}
+            disabled={verifyingPsn || !npssoInput.trim()}
+            onClick={() => void handleConnectPsn()}
+          >
+            {verifyingPsn ? '驗證中...' : '🔐 驗證並連結 PSN'}
+          </button>
+          {config.psnTokenStatus && config.psnTokenStatus !== 'unset' && (
+            <button
+              type="button"
+              className={ui.btnDanger}
+              disabled={verifyingPsn}
+              onClick={() => void handleDisconnectPsn()}
+            >
+              解除連結
+            </button>
+          )}
         </div>
       </section>
 
@@ -164,7 +284,7 @@ export function SettingsPage({ uid, config, onSaveConfig }: SettingsPageProps) {
           <span>🕹️ Switch 跨區比價區域</span>
         </div>
         <p className="pn-hint" style={{ marginBottom: 10 }}>
-          2025/09 台灣 eShop 上線後，海外區大多需搭配點數卡購買。請勾選你願意購買的區域：
+          每日排程會自動查詢以下勾選區域的任天堂 eShop 價格並換算成台幣，挑出最便宜區域推播（附付款方式提示）：
         </p>
         <div className="pn-row">
           {REGION_ORDER.map((code) => {
@@ -190,23 +310,13 @@ export function SettingsPage({ uid, config, onSaveConfig }: SettingsPageProps) {
         </div>
         <div className="pn-row">
           <div className="pn-field">
-            <label htmlFor="set-fb-uid">你的 Firebase UID（請填入 GitHub Secret `TARGET_FIREBASE_UID`）</label>
+            <label htmlFor="set-fb-uid">你的 Firebase UID（對應 GitHub Secret `TARGET_FIREBASE_UID`）</label>
             <input id="set-fb-uid" className={ui.input} value={uid} readOnly />
           </div>
           <button type="button" className={ui.btn} onClick={() => void handleCopyUid()}>
             {copiedUid ? '✓ 已複製' : '複製 UID'}
           </button>
         </div>
-      </section>
-
-      <section className={ui.panel}>
-        <div className="pn-panel-title">
-          <span>🎯 PS5 / PSN 連動（Phase 3 預留）</span>
-          <span className="pn-badge warn">Phase 3 啟用</span>
-        </div>
-        <p className="pn-hint">
-          Phase 3 將在此提供 64 碼 <code>npsso</code> token 遮罩貼上與驗證功能，並於 2 個月到期前 5 天自動發 LINE 提醒更新。
-        </p>
       </section>
 
       <div className="pn-row">

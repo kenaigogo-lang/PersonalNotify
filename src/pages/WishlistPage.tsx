@@ -10,6 +10,7 @@ import {
   type WishlistGameRecord,
 } from '../../shared/types';
 import { isGameOwned, normalizeGameTitle } from '../../shared/dedup';
+import { parseStoreUrlOrId } from '../../shared/store-urls';
 import { searchGamesOnline } from '../services/api';
 import { createDocId } from '../services/firebase';
 import { useUi } from '../theme';
@@ -40,6 +41,7 @@ export function WishlistPage({
   // 新增願望清單表單狀態
   const [addPlatform, setAddPlatform] = useState<GamePlatform>('SWITCH');
   const [queryText, setQueryText] = useState('');
+  const [storeUrlInput, setStoreUrlInput] = useState('');
   const [targetPrice, setTargetPrice] = useState('');
   const [minDiscount, setMinDiscount] = useState(String(defaultMinDiscount || 30));
   const [searching, setSearching] = useState(false);
@@ -84,9 +86,12 @@ export function WishlistPage({
     const cleanTitle = input.title.trim();
     if (!cleanTitle) return;
 
+    const parsedStore = parseStoreUrlOrId(storeUrlInput);
+    const resolvedSteamId = input.steamAppId ?? parsedStore.steamAppId;
+
     const id =
-      input.platform === 'PC' && input.steamAppId
-        ? `steam_${input.steamAppId}`
+      input.platform === 'PC' && resolvedSteamId
+        ? `steam_${resolvedSteamId}`
         : createDocId(`wish_${input.platform.toLowerCase()}`);
 
     const rec: WishlistGameRecord = {
@@ -96,14 +101,19 @@ export function WishlistPage({
       platform: input.platform,
       source: 'manual',
       externalIds: {
-        ...(input.steamAppId ? { steamAppId: input.steamAppId } : {}),
+        ...(resolvedSteamId ? { steamAppId: resolvedSteamId } : {}),
         ...(input.igdbId ? { igdbId: input.igdbId } : {}),
+        ...(parsedStore.switchNsuid ? { switchNsuid: parsedStore.switchNsuid } : {}),
+        ...(parsedStore.psnProductId ? { psnProductId: parsedStore.psnProductId } : {}),
+        ...(parsedStore.psnConceptId ? { psnConceptId: parsedStore.psnConceptId } : {}),
+        ...(parsedStore.psnTitleId ? { psnTitleId: parsedStore.psnTitleId } : {}),
       },
       imageUrl: input.imageUrl,
       targetPriceTwd: targetPrice ? Number(targetPrice) : null,
       minDiscountPercent: minDiscount ? Number(minDiscount) : null,
       currentStoreUrl:
-        input.steamAppId ? `https://store.steampowered.com/app/${input.steamAppId}/` : null,
+        parsedStore.storeUrl ||
+        (resolvedSteamId ? `https://store.steampowered.com/app/${resolvedSteamId}/` : null),
       addedAt: Date.now(),
     };
 
@@ -111,6 +121,7 @@ export function WishlistPage({
     try {
       await onAddOrUpdate(rec);
       setQueryText('');
+      setStoreUrlInput('');
       setTargetPrice('');
       setSearchResults([]);
       setFeedback(`已加入願望清單：「${cleanTitle}」(${PLATFORM_LABEL[input.platform]})`);
@@ -201,6 +212,21 @@ export function WishlistPage({
               className={ui.input}
               value={minDiscount}
               onChange={(e) => setMinDiscount(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="pn-row" style={{ marginTop: 10 }}>
+          <div className="pn-field">
+            <label htmlFor="wish-store-url">
+              商店網址或 Switch 14 碼 NSUID（選填，貼上可讓 PS5 / Switch 跨區查價 100% 精準）
+            </label>
+            <input
+              id="wish-store-url"
+              className={ui.input}
+              placeholder="例如：https://store-jp.nintendo.com/item/software/D70010000... 或 PS Store 台灣網址"
+              value={storeUrlInput}
+              onChange={(e) => setStoreUrlInput(e.target.value)}
             />
           </div>
         </div>

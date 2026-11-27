@@ -38,6 +38,7 @@ jobs:
           STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}
           STEAM_ID: ${{ secrets.STEAM_ID }}
           ITAD_API_KEY: ${{ secrets.ITAD_API_KEY }}
+          PSN_WISHLIST_SHA256: ${{ secrets.PSN_WISHLIST_SHA256 }}
           APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
           DRY_RUN: ${{ inputs.dry_run == true && '1' || '0' }}
         run: npm run worker:games
