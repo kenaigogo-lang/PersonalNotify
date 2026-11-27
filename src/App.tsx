@@ -362,6 +362,7 @@ function AppShell({
                 gameRankGames={gameRankGames}
                 defaultMinDiscount={config.defaultMinDiscount}
                 onAddOrUpdate={handleSaveWishlist}
+                onAddWishlistBatch={handleAddWishlistBatch}
                 onDelete={handleDeleteWishlist}
                 onMoveToOwned={handleMoveWishlistToOwned}
               />

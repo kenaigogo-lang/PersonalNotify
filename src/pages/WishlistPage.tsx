@@ -10,6 +10,7 @@ import {
   type WishlistGameRecord,
 } from '../../shared/types';
 import { isGameOwned, normalizeGameTitle } from '../../shared/dedup';
+import { parsePsnWishlistSource, toPsnWishlistRecord } from '../../shared/psn-wishlist-import';
 import { parseStoreUrlOrId } from '../../shared/store-urls';
 import { searchGamesOnline } from '../services/api';
 import { createDocId } from '../services/firebase';
@@ -21,6 +22,7 @@ interface WishlistPageProps {
   gameRankGames: GameRankRecord[];
   defaultMinDiscount: number;
   onAddOrUpdate: (game: WishlistGameRecord) => Promise<void>;
+  onAddWishlistBatch: (games: WishlistGameRecord[]) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onMoveToOwned: (game: WishlistGameRecord) => Promise<void>;
 }
@@ -31,6 +33,7 @@ export function WishlistPage({
   gameRankGames,
   defaultMinDiscount,
   onAddOrUpdate,
+  onAddWishlistBatch,
   onDelete,
   onMoveToOwned,
 }: WishlistPageProps) {
@@ -48,6 +51,40 @@ export function WishlistPage({
   const [searchResults, setSearchResults] = useState<GameSearchResult[]>([]);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  // PSN 願望清單網頁原始碼匯入視窗
+  const [psnImportOpen, setPsnImportOpen] = useState(false);
+  const [psnRawText, setPsnRawText] = useState('');
+  const [importingPsn, setImportingPsn] = useState(false);
+
+  const psnPreview = useMemo(() => {
+    if (!psnRawText.trim()) return null;
+    try {
+      const items = parsePsnWishlistSource(psnRawText);
+      const existingIds = new Set(wishlistGames.map((w) => w.id));
+      const records = items.map((item) => toPsnWishlistRecord(item));
+      const newRecords = records.filter((rec) => !existingIds.has(rec.id));
+      return { error: null as string | null, total: records.length, newRecords };
+    } catch (err) {
+      return { error: (err as Error).message, total: 0, newRecords: [] as WishlistGameRecord[] };
+    }
+  }, [psnRawText, wishlistGames]);
+
+  const handlePsnWishlistImport = async () => {
+    if (!psnPreview || psnPreview.error || psnPreview.newRecords.length === 0) return;
+    setImportingPsn(true);
+    try {
+      await onAddWishlistBatch(psnPreview.newRecords);
+      setPsnRawText('');
+      setPsnImportOpen(false);
+      setPlatformFilter('PS');
+      setFeedback(
+        `🎮 成功匯入 ${psnPreview.newRecords.length} 款 PSN 台灣願望清單遊戲！排程每天會自動追蹤這些遊戲的台幣折扣。`
+      );
+    } finally {
+      setImportingPsn(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = keyword.trim().toLowerCase();
@@ -154,6 +191,13 @@ export function WishlistPage({
       <section className={ui.panel}>
         <div className="pn-panel-title">
           <span>➕ 加入追蹤願望清單（支援 Switch / PS5 / Steam）</span>
+          <button
+            type="button"
+            className={ui.btnPrimary}
+            onClick={() => setPsnImportOpen(true)}
+          >
+            🎮 匯入 PSN 願望清單
+          </button>
         </div>
 
         <div className="pn-row">
@@ -350,7 +394,13 @@ export function WishlistPage({
                       <h3 className="pn-card-title">{item.title}</h3>
                       <div className="pn-badges">
                         <span className="pn-badge pri">{PLATFORM_LABEL[item.platform]}</span>
-                        <span className="pn-badge">{item.source === 'steam' ? 'Steam 同步' : '手動'}</span>
+                        <span className="pn-badge">
+                          {item.source === 'steam'
+                            ? 'Steam 同步'
+                            : item.source === 'psn'
+                              ? 'PSN 匯入'
+                              : '手動'}
+                        </span>
                         {item.isHistoricalLow && <span className="pn-badge hot">🔥 史低</span>}
                         {(item.currentDiscountPercent || 0) > 0 && (
                           <span className="pn-badge ok">-{item.currentDiscountPercent}%</span>
@@ -456,6 +506,90 @@ export function WishlistPage({
           </div>
         )}
       </section>
+
+      {psnImportOpen && (
+        <div className="pn-modal-backdrop" onClick={() => setPsnImportOpen(false)}>
+          <div className={`${ui.panel} pn-modal`} onClick={(e) => e.stopPropagation()}>
+            <div className="pn-panel-title">
+              <span>🎮 匯入 PSN 台灣願望清單（免開開發者工具）</span>
+              <button type="button" className={ui.btn} onClick={() => setPsnImportOpen(false)}>
+                關閉
+              </button>
+            </div>
+
+            <ol className="pn-hint" style={{ paddingLeft: 20, marginBottom: 12 }}>
+              <li>
+                用電腦瀏覽器打開你的 PlayStation 台灣願望清單：{' '}
+                <a
+                  href="https://store.playstation.com/zh-hant-tw/wishlist"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  store.playstation.com/zh-hant-tw/wishlist
+                </a>
+                （確認已登入並看到你的收藏遊戲）。
+              </li>
+              <li>
+                按下 <code>Ctrl+U</code>（Mac 為 <code>⌘+Option+U</code>）開啟「檢視網頁原始碼」。
+              </li>
+              <li>
+                按 <code>Ctrl+A</code> 全選 → <code>Ctrl+C</code> 複製 → 貼到下方框框，系統會自動萃取出所有遊戲名稱、封面、Product ID 與台幣現價！
+              </li>
+            </ol>
+
+            <div className="pn-field">
+              <label htmlFor="psn-wishlist-raw">貼上願望清單網頁原始碼</label>
+              <textarea
+                id="psn-wishlist-raw"
+                rows={6}
+                className={ui.textarea}
+                placeholder="貼上 Ctrl+U 複製的完整 HTML（或 __NEXT_DATA__ JSON）..."
+                value={psnRawText}
+                onChange={(e) => setPsnRawText(e.target.value)}
+              />
+            </div>
+
+            {psnPreview?.error && (
+              <div className="pn-alert err" style={{ marginTop: 10 }}>
+                {psnPreview.error}
+              </div>
+            )}
+
+            {psnPreview && !psnPreview.error && (
+              <div className="pn-alert ok" style={{ marginTop: 10 }}>
+                解析成功！偵測到 <strong>{psnPreview.total}</strong> 款 PSN 願望清單遊戲（將新增{' '}
+                <strong>{psnPreview.newRecords.length}</strong> 款，其餘已在清單內）：
+                <div className="pn-meta" style={{ marginTop: 4 }}>
+                  {psnPreview.newRecords
+                    .slice(0, 6)
+                    .map((r) => r.title)
+                    .join('、')}
+                  {psnPreview.newRecords.length > 6 ? ' ...' : ''}
+                </div>
+              </div>
+            )}
+
+            <div className="pn-row" style={{ marginTop: 14, justifyContent: 'flex-end' }}>
+              <button type="button" className={ui.btn} onClick={() => setPsnImportOpen(false)}>
+                取消
+              </button>
+              <button
+                type="button"
+                className={ui.btnSuccess}
+                disabled={
+                  importingPsn ||
+                  !psnPreview ||
+                  Boolean(psnPreview.error) ||
+                  psnPreview.newRecords.length === 0
+                }
+                onClick={() => void handlePsnWishlistImport()}
+              >
+                {importingPsn ? '匯入中...' : '確認匯入至願望清單'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
