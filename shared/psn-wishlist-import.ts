@@ -13,6 +13,10 @@ export interface ImportedPsnWishlistItem {
   storeUrl: string;
 }
 
+/** 給使用者在 store.playstation.com/zh-hant-tw/wishlist 的 Console 一鍵執行的擷取指令（不含任何帳密/Cookie） */
+export const PSN_WISHLIST_CONSOLE_SNIPPET =
+  `copy(JSON.stringify([...document.querySelectorAll('a[href*="/product/"],a[href*="/concept/"]')].map(a=>{const c=a.closest('li,article,[data-qa*="wishlist"],div');const img=a.querySelector('img')||c?.querySelector('img');return{href:a.href,text:(c?.innerText||a.innerText||'').trim(),linkText:(a.innerText||'').trim(),aria:a.getAttribute('aria-label')||'',img:img?.currentSrc||img?.src||''}})))`;
+
 const parsePriceNum = (raw?: unknown): number | undefined => {
   if (typeof raw === 'number' && Number.isFinite(raw)) return Math.round(raw);
   if (typeof raw !== 'string') return undefined;
@@ -21,6 +25,107 @@ const parsePriceNum = (raw?: unknown): number | undefined => {
   if (!cleaned) return undefined;
   const val = Number(cleaned);
   return Number.isFinite(val) ? Math.round(val) : undefined;
+};
+
+const NOISE_LINE_RE =
+  /^(PS5|PS4|PS5\s*[|・/]\s*PS4|PS4\s*[|・/]\s*PS5|遊戲本體|遊戲|同捆包|完整版|追加內容|體驗版|已公布|搶先預購|預購|預訂|特價|限時優惠|折扣|免費|加入購物車|檢視商品|移出收藏清單|移除|收藏清單|PlayStation\s*Plus.*|PS\s*Plus.*|SAVE\s*\d+%?|-\s*\d+\s*%|NT\$\s*[\d,]+|\$[\d,.]+|[\d,]+\s*元)$/i;
+
+/** 從 PS Store 願望清單卡片多行文字中挑出乾淨的遊戲名稱與台幣價格 */
+export const extractCardTitleAndPrices = (
+  text: string,
+  linkText?: string,
+  aria?: string
+): {
+  title: string;
+  currentPriceTwd?: number;
+  regularPriceTwd?: number;
+  discountPercent?: number;
+} => {
+  const combined = `${text || ''}\n${linkText || ''}`;
+
+  // 擷取所有 NT$ 金額（通常第 1 個是折後現價，第 2 個是原價）
+  const priceMatches = Array.from(combined.matchAll(/NT\$\s*([\d,]+)/gi))
+    .map((m) => parsePriceNum(m[1]))
+    .filter((n): n is number => typeof n === 'number' && n >= 0);
+
+  let currentPriceTwd: number | undefined;
+  let regularPriceTwd: number | undefined;
+  if (priceMatches.length >= 2) {
+    currentPriceTwd = Math.min(priceMatches[0], priceMatches[1]);
+    regularPriceTwd = Math.max(priceMatches[0], priceMatches[1]);
+  } else if (priceMatches.length === 1) {
+    currentPriceTwd = priceMatches[0];
+    regularPriceTwd = priceMatches[0];
+  }
+
+  const discMatch = combined.match(/-\s*(\d{1,2})\s*%/);
+  let discountPercent = discMatch ? Number(discMatch[1]) : undefined;
+  if (
+    discountPercent === undefined &&
+    regularPriceTwd &&
+    currentPriceTwd !== undefined &&
+    regularPriceTwd > currentPriceTwd
+  ) {
+    discountPercent = Math.round(((regularPriceTwd - currentPriceTwd) / regularPriceTwd) * 100);
+  }
+
+  // 挑選標題：優先從 linkText 或 text 中過濾雜訊行
+  const candidateLines = `${linkText || ''}\n${text || ''}\n${aria || ''}`
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length >= 2 && !NOISE_LINE_RE.test(l) && !/^NT\$/i.test(l));
+
+  const title = candidateLines[0] || '';
+  return { title, currentPriceTwd, regularPriceTwd, discountPercent };
+};
+
+const parseFromConsoleArray = (arr: unknown[]): ImportedPsnWishlistItem[] => {
+  const results: ImportedPsnWishlistItem[] = [];
+  const seen = new Set<string>();
+
+  for (const raw of arr) {
+    if (!raw || typeof raw !== 'object') continue;
+    const row = raw as Record<string, unknown>;
+    const href = typeof row.href === 'string' ? row.href.trim() : '';
+    if (!href) continue;
+
+    const prodMatch = href.match(/\/product\/([A-Za-z0-9_-]{8,80})/i);
+    const conceptMatch = href.match(/\/concept\/(\d{5,12})/i);
+    const productId = prodMatch?.[1];
+    const conceptId = conceptMatch?.[1];
+    if (!productId && !conceptId) continue;
+
+    const { title, currentPriceTwd, regularPriceTwd, discountPercent } = extractCardTitleAndPrices(
+      String(row.text || ''),
+      String(row.linkText || ''),
+      String(row.aria || '')
+    );
+    if (!title) continue;
+
+    const key = productId || conceptId || normalizeGameTitle(title);
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const titleIdMatch = (productId || '').match(/\b((?:PPSA|CUSA)\d{5}_\d{2})\b/i);
+    const imgRaw = typeof row.img === 'string' ? row.img.trim() : '';
+    const imageUrl = /^https?:\/\//i.test(imgRaw) && !/default-product-image/i.test(imgRaw) ? imgRaw : undefined;
+
+    results.push({
+      title,
+      productId,
+      conceptId,
+      titleId: titleIdMatch ? titleIdMatch[1].toUpperCase() : undefined,
+      imageUrl,
+      currentPriceTwd,
+      regularPriceTwd,
+      discountPercent,
+      storeUrl: productId
+        ? `https://store.playstation.com/zh-hant-tw/product/${productId}`
+        : `https://store.playstation.com/zh-hant-tw/concept/${conceptId}`,
+    });
+  }
+
+  return results;
 };
 
 const extractImageUrl = (
@@ -38,7 +143,6 @@ const extractImageUrl = (
       })
       .filter((m): m is Record<string, unknown> => Boolean(m && typeof m === 'object'));
 
-    // 優先挑 MASTER / GAMEHUB_COVER_ART / FOUR_BY_THREE_BANNER
     const preferred =
       resolved.find((m) => /MASTER|COVER|BANNER/i.test(String(m.role || m.type || '')) && typeof m.url === 'string') ||
       resolved.find((m) => typeof m.url === 'string' && /^https?:\/\//i.test(String(m.url)));
@@ -100,7 +204,6 @@ const buildFromProductOrConcept = (
     conceptId = rawId || undefined;
   }
 
-  // 若是 Concept 物件，嘗試往下找預設 Product 取得價格與 productId
   let priceSource = obj;
   if (!productId && Array.isArray(obj.products) && obj.products.length > 0) {
     let firstProd = obj.products[0] as Record<string, unknown>;
@@ -133,7 +236,6 @@ const buildFromProductOrConcept = (
   };
 };
 
-/** 遞迴從物件中蒐集所有含 __ref 或 inline 的遊戲節點 */
 const collectRefs = (node: unknown, out: Set<string>, depth = 0): void => {
   if (depth > 8 || !node || typeof node !== 'object') return;
   if (Array.isArray(node)) {
@@ -174,7 +276,6 @@ const parseFromNextData = (nextData: Record<string, unknown>): ImportedPsnWishli
     const rootQuery = apolloState.ROOT_QUERY as Record<string, unknown> | undefined;
     const wishlistRefs = new Set<string>();
 
-    // 1. 優先從 ROOT_QUERY 的 wishlist 相關欄位精準追蹤引用
     if (rootQuery && typeof rootQuery === 'object') {
       for (const [key, val] of Object.entries(rootQuery)) {
         if (/wishlist/i.test(key)) {
@@ -191,7 +292,6 @@ const parseFromNextData = (nextData: Record<string, unknown>): ImportedPsnWishli
         }
       }
     } else {
-      // 2. 若 ROOT_QUERY key 改名，退而掃描 apolloState 中的 Product:* 與 Concept:*
       for (const [key, val] of Object.entries(apolloState)) {
         if (!/^(Product|Concept):/i.test(key) || !val || typeof val !== 'object') continue;
         pushItem(buildFromProductOrConcept(val as Record<string, unknown>, apolloState));
@@ -203,16 +303,31 @@ const parseFromNextData = (nextData: Record<string, unknown>): ImportedPsnWishli
 };
 
 /**
- * 解析從 https://store.playstation.com/zh-hant-tw/wishlist 複製的網頁原始碼（Ctrl+U）或 __NEXT_DATA__ JSON，
- * 自動萃取出使用者的全部 PSN 願望清單項目。
+ * 支援 3 種貼上來源自動解析 PSN 台灣願望清單：
+ * 1. Console 一鍵擷取指令輸出的 JSON 陣列（最準、100% 適用動態渲染頁面）
+ * 2. __NEXT_DATA__ JSON（SSR 頁面）
+ * 3. 完整渲染後的 DOM HTML（含 <a href=".../product/...">）
  */
 export const parsePsnWishlistSource = (rawText: string): ImportedPsnWishlistItem[] => {
   const trimmed = rawText.trim();
   if (!trimmed) {
-    throw new Error('請先貼上 PlayStation 願望清單網頁原始碼（Ctrl+U → Ctrl+A → Ctrl+C）。');
+    throw new Error('請先執行 Console 擷取指令並貼上結果。');
   }
 
-  // 1. 嘗試直接解析整段 JSON（例如 __NEXT_DATA__ JSON）
+  // 1. 優先解析 Console 擷取指令產出的 JSON 陣列
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed) as unknown[];
+      if (Array.isArray(parsed)) {
+        const items = parseFromConsoleArray(parsed);
+        if (items.length > 0) return items;
+      }
+    } catch {
+      // 繼續嘗試其他格式
+    }
+  }
+
+  // 2. 嘗試解析 __NEXT_DATA__ JSON
   if (trimmed.startsWith('{')) {
     try {
       const parsed = JSON.parse(trimmed) as Record<string, unknown>;
@@ -223,7 +338,7 @@ export const parsePsnWishlistSource = (rawText: string): ImportedPsnWishlistItem
     }
   }
 
-  // 2. 從完整 HTML 原始碼中擷取 <script id="__NEXT_DATA__">
+  // 3. 嘗試從 HTML 中擷取 <script id="__NEXT_DATA__">
   const scriptMatch = trimmed.match(
     /<script[^>]*id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i
   );
@@ -233,25 +348,32 @@ export const parsePsnWishlistSource = (rawText: string): ImportedPsnWishlistItem
       const items = parseFromNextData(parsed);
       if (items.length > 0) return items;
     } catch {
-      // 往下走 HTML 連結備援
+      // 繼續往下走 DOM <a> 解析
     }
   }
 
-  // 3. HTML <a> 連結備援解析（若使用者貼的是部分 HTML 或連結清單）
+  // 4. 渲染後的 DOM HTML <a> 標籤解析（支援巢狀子元素文字）
   const fallback: ImportedPsnWishlistItem[] = [];
   const seen = new Set<string>();
-  const linkMatches = trimmed.matchAll(
-    /href=["']((?:https:\/\/store\.playstation\.com)?\/zh-hant-tw\/(product|concept)\/([A-Za-z0-9_-]+))["'][^>]*?(?:aria-label=["']([^"']+)["']|>([^<]{2,100})<)/gi
+  const anchorMatches = trimmed.matchAll(
+    /<a\b[^>]*href=["']((?:https:\/\/store\.playstation\.com)?\/[^"']*\/(product|concept)\/([A-Za-z0-9_-]+))["'][^>]*>([\s\S]*?)<\/a>/gi
   );
-  for (const m of linkMatches) {
+  for (const m of anchorMatches) {
     const kind = m[2].toLowerCase();
     const id = m[3];
-    const title = (m[4] || m[5] || '').trim();
+    const innerText = m[4].replace(/<[^>]+>/g, '\n').trim();
+    const { title, currentPriceTwd, regularPriceTwd, discountPercent } =
+      extractCardTitleAndPrices(innerText);
     if (!title || seen.has(id)) continue;
     seen.add(id);
+    const titleIdMatch = id.match(/\b((?:PPSA|CUSA)\d{5}_\d{2})\b/i);
     fallback.push({
       title,
       ...(kind === 'product' ? { productId: id } : { conceptId: id }),
+      titleId: titleIdMatch ? titleIdMatch[1].toUpperCase() : undefined,
+      currentPriceTwd,
+      regularPriceTwd,
+      discountPercent,
       storeUrl: `https://store.playstation.com/zh-hant-tw/${kind}/${id}`,
     });
   }
@@ -259,7 +381,7 @@ export const parsePsnWishlistSource = (rawText: string): ImportedPsnWishlistItem
   if (fallback.length > 0) return fallback;
 
   throw new Error(
-    '找不到願望清單遊戲資料。請確認已登入 PlayStation 台灣商店並打開 store.playstation.com/zh-hant-tw/wishlist，再按 Ctrl+U 複製完整原始碼！'
+    '找不到願望清單遊戲資料（PlayStation 願望清單是動態渲染的，Ctrl+U 原始碼只含空白外殼）。請改用上方「複製擷取指令」貼到願望清單頁的 F12 → Console 執行即可！'
   );
 };
 

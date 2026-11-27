@@ -10,7 +10,11 @@ import {
   type WishlistGameRecord,
 } from '../../shared/types';
 import { isGameOwned, normalizeGameTitle } from '../../shared/dedup';
-import { parsePsnWishlistSource, toPsnWishlistRecord } from '../../shared/psn-wishlist-import';
+import {
+  parsePsnWishlistSource,
+  PSN_WISHLIST_CONSOLE_SNIPPET,
+  toPsnWishlistRecord,
+} from '../../shared/psn-wishlist-import';
 import { parseStoreUrlOrId } from '../../shared/store-urls';
 import { searchGamesOnline } from '../services/api';
 import { createDocId } from '../services/firebase';
@@ -52,10 +56,11 @@ export function WishlistPage({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  // PSN 願望清單網頁原始碼匯入視窗
+  // PSN 願望清單匯入視窗
   const [psnImportOpen, setPsnImportOpen] = useState(false);
   const [psnRawText, setPsnRawText] = useState('');
   const [importingPsn, setImportingPsn] = useState(false);
+  const [copiedPsnSnippet, setCopiedPsnSnippet] = useState(false);
 
   const psnPreview = useMemo(() => {
     if (!psnRawText.trim()) return null;
@@ -511,15 +516,15 @@ export function WishlistPage({
         <div className="pn-modal-backdrop" onClick={() => setPsnImportOpen(false)}>
           <div className={`${ui.panel} pn-modal`} onClick={(e) => e.stopPropagation()}>
             <div className="pn-panel-title">
-              <span>🎮 匯入 PSN 台灣願望清單（免開開發者工具）</span>
+              <span>🎮 匯入 PSN 台灣願望清單（一鍵擷取指令）</span>
               <button type="button" className={ui.btn} onClick={() => setPsnImportOpen(false)}>
                 關閉
               </button>
             </div>
 
-            <ol className="pn-hint" style={{ paddingLeft: 20, marginBottom: 12 }}>
+            <ol className="pn-hint" style={{ paddingLeft: 20, marginBottom: 10 }}>
               <li>
-                用電腦瀏覽器打開你的 PlayStation 台灣願望清單：{' '}
+                先打開你的 PlayStation 台灣願望清單並捲動到最底確保所有遊戲都顯示：{' '}
                 <a
                   href="https://store.playstation.com/zh-hant-tw/wishlist"
                   target="_blank"
@@ -527,23 +532,41 @@ export function WishlistPage({
                 >
                   store.playstation.com/zh-hant-tw/wishlist
                 </a>
-                （確認已登入並看到你的收藏遊戲）。
               </li>
               <li>
-                按下 <code>Ctrl+U</code>（Mac 為 <code>⌘+Option+U</code>）開啟「檢視網頁原始碼」。
-              </li>
-              <li>
-                按 <code>Ctrl+A</code> 全選 → <code>Ctrl+C</code> 複製 → 貼到下方框框，系統會自動萃取出所有遊戲名稱、封面、Product ID 與台幣現價！
+                點下方按鈕複製擷取指令（只讀畫面上已顯示的遊戲名稱、封面與連結，完全不含帳密或 Cookie）：
               </li>
             </ol>
 
+            <div className="pn-row" style={{ marginBottom: 10 }}>
+              <button
+                type="button"
+                className={ui.btnWarn}
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(PSN_WISHLIST_CONSOLE_SNIPPET);
+                    setCopiedPsnSnippet(true);
+                    setTimeout(() => setCopiedPsnSnippet(false), 2500);
+                  } catch {
+                    // ignore
+                  }
+                }}
+              >
+                {copiedPsnSnippet ? '✓ 已複製擷取指令！' : '📋 複製一鍵擷取指令'}
+              </button>
+            </div>
+
+            <p className="pn-hint" style={{ marginBottom: 10 }}>
+              3. 在 PlayStation 願望清單頁按 <code>F12</code> → 切到 <strong>Console（主控台）</strong> → 貼上剛剛複製的指令並按 <code>Enter</code>（Chrome 首次貼上若提示請先輸入 <code>allow pasting</code> 按 Enter）。執行後遊戲清單會<strong>自動複製到剪貼簿</strong>，再直接 <code>Ctrl+V</code> 貼到下方框框即可！
+            </p>
+
             <div className="pn-field">
-              <label htmlFor="psn-wishlist-raw">貼上願望清單網頁原始碼</label>
+              <label htmlFor="psn-wishlist-raw">貼上擷取結果（JSON）</label>
               <textarea
                 id="psn-wishlist-raw"
-                rows={6}
+                rows={5}
                 className={ui.textarea}
-                placeholder="貼上 Ctrl+U 複製的完整 HTML（或 __NEXT_DATA__ JSON）..."
+                placeholder='執行完指令後直接 Ctrl+V 貼上（[{"href":"https://store.playstation.com/..."}]）'
                 value={psnRawText}
                 onChange={(e) => setPsnRawText(e.target.value)}
               />
