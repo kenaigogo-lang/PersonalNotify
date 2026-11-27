@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isGameOwned, normalizeGameTitle, shouldNotifyDeal } from './dedup.js';
+import {
+  isGameOwned,
+  normalizeGameTitle,
+  resolveLastNotifiedPriceAfterCheck,
+  shouldNotifyDeal,
+} from './dedup.js';
 import type { GameRankRecord, OwnedGameRecord } from './types.js';
 
 describe('normalizeGameTitle', () => {
@@ -152,3 +157,47 @@ describe('shouldNotifyDeal', () => {
     ).toBe(false);
   });
 });
+
+describe('resolveLastNotifiedPriceAfterCheck', () => {
+  it('resets lastNotifiedPriceTwd to null when sale ends and price returns above notified price', () => {
+    const afterSaleEnds = resolveLastNotifiedPriceAfterCheck({
+      lastNotifiedPriceTwd: 500,
+      currentPriceTwd: 1000,
+      discountPercent: 0,
+    });
+    expect(afterSaleEnds).toBeNull();
+
+    // Next sale at the same price (500) should notify again
+    expect(
+      shouldNotifyDeal({
+        currentPriceTwd: 500,
+        discountPercent: 50,
+        isHistoricalLow: false,
+        defaultMinDiscount: 30,
+        notifyOnHistoricalLow: true,
+        lastNotifiedPriceTwd: afterSaleEnds,
+      })
+    ).toBe(true);
+  });
+
+  it('keeps lastNotifiedPriceTwd during an ongoing sale (including slight FX fluctuation)', () => {
+    expect(
+      resolveLastNotifiedPriceAfterCheck({
+        lastNotifiedPriceTwd: 500,
+        currentPriceTwd: 505,
+        discountPercent: 50,
+      })
+    ).toBe(500);
+  });
+
+  it('does not reset on permanent regular-price drop so target-price alert will not spam', () => {
+    expect(
+      resolveLastNotifiedPriceAfterCheck({
+        lastNotifiedPriceTwd: 450,
+        currentPriceTwd: 450,
+        discountPercent: 0,
+      })
+    ).toBe(450);
+  });
+});
+

@@ -1,4 +1,9 @@
-import { isGameOwned, normalizeGameTitle, shouldNotifyDeal } from '../shared/dedup.js';
+import {
+  isGameOwned,
+  normalizeGameTitle,
+  resolveLastNotifiedPriceAfterCheck,
+  shouldNotifyDeal,
+} from '../shared/dedup.js';
 import { buildGameDigestFlex, buildSystemAlertFlex } from '../shared/line-flex.js';
 import type {
   DealCardItem,
@@ -333,6 +338,11 @@ const main = async () => {
       lowestSeenPriceTwd: nextLowest,
       priceHistory: appendPriceHistory(item.priceHistory, quote.currentPriceTwd, quote.discountPercent, 'TW'),
       priceTrackerUrl: quote.priceTrackerUrl ?? item.priceTrackerUrl ?? null,
+      lastNotifiedPriceTwd: resolveLastNotifiedPriceAfterCheck({
+        lastNotifiedPriceTwd: item.lastNotifiedPriceTwd,
+        currentPriceTwd: quote.currentPriceTwd,
+        discountPercent: quote.discountPercent,
+      }),
       lastCheckedAt: now,
     };
 
@@ -417,6 +427,11 @@ const main = async () => {
         quote?.priceTrackerUrl ||
         item.priceTrackerUrl ||
         `https://platprices.com/search.php?q=${encodeURIComponent(item.title)}`,
+      lastNotifiedPriceTwd: resolveLastNotifiedPriceAfterCheck({
+        lastNotifiedPriceTwd: item.lastNotifiedPriceTwd,
+        currentPriceTwd: currentPrice,
+        discountPercent,
+      }),
       lastCheckedAt: now,
     };
 
@@ -523,6 +538,11 @@ const main = async () => {
           best.region
         ),
         priceTrackerUrl: res.priceTrackerUrl,
+        lastNotifiedPriceTwd: resolveLastNotifiedPriceAfterCheck({
+          lastNotifiedPriceTwd: item.lastNotifiedPriceTwd,
+          currentPriceTwd: best.currentPriceTwd,
+          discountPercent: best.discountPercent,
+        }),
         lastCheckedAt: now,
       };
 

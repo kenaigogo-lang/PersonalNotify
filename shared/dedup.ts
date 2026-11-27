@@ -208,3 +208,22 @@ export const shouldNotifyDeal = (params: {
 
   return hitTargetPrice || hitDiscount || hitHistoricalLow;
 };
+
+/**
+ * 計算查價後的 lastNotifiedPriceTwd 狀態：
+ * - 若遊戲已漲回原價（無折扣且現價高於上次通知價），清空紀錄讓下一波新特賣可以再提醒一次；
+ * - 否則保留原紀錄（同一波特賣期間不重複推播，除非更低價；原價永降觸發目標價也不會重複洗版）。
+ */
+export const resolveLastNotifiedPriceAfterCheck = (params: {
+  lastNotifiedPriceTwd?: number | null;
+  currentPriceTwd: number;
+  discountPercent: number;
+}): number | null => {
+  const prev = typeof params.lastNotifiedPriceTwd === 'number' ? params.lastNotifiedPriceTwd : null;
+  if (prev === null) return null;
+  if (params.discountPercent <= 0 && params.currentPriceTwd > prev) {
+    return null;
+  }
+  return prev;
+};
+
