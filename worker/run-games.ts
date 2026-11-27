@@ -161,12 +161,21 @@ const main = async () => {
     const nextLowest =
       prevLowest === null ? quote.currentPriceTwd : Math.min(prevLowest, quote.currentPriceTwd);
 
+    let resolvedTitle = item.title;
+    if (resolvedTitle.startsWith('Steam App ')) {
+      if (quote.title) {
+        resolvedTitle = quote.title;
+      } else {
+        const detail = await fetchSteamStoreAppDetails(appid).catch(() => null);
+        if (detail?.title) resolvedTitle = detail.title;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+    }
+
     const updated: WishlistGameRecord = {
       ...item,
-      title: quote.title && item.title.startsWith('Steam App ') ? quote.title : item.title,
-      normalizedTitle: normalizeGameTitle(
-        quote.title && item.title.startsWith('Steam App ') ? quote.title : item.title
-      ),
+      title: resolvedTitle,
+      normalizedTitle: normalizeGameTitle(resolvedTitle),
       externalIds: { ...item.externalIds, ...(quote.itadId ? { itadId: quote.itadId } : {}) },
       imageUrl: item.imageUrl || quote.imageUrl,
       currentBestPriceTwd: quote.currentPriceTwd,

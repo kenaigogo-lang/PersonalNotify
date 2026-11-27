@@ -120,15 +120,17 @@ export function SettingsPage({ uid, config, onSaveConfig }: SettingsPageProps) {
 
         <div className="pn-row">
           <div className="pn-field">
-            <label htmlFor="set-steam-id">Steam ID64（17 碼數字）</label>
+            <label htmlFor="set-steam-id">Steam ID64（選填，僅公開檔案自動同步用）</label>
             <input
               id="set-steam-id"
               className={ui.input}
               value={steamId}
               onChange={(e) => setSteamId(e.target.value)}
-              placeholder="例如：76561198xxxxxxxxx"
+              placeholder="若使用私人帳號匯入可留空"
             />
-            <p className="pn-hint">請確認 Steam 個人檔案的「遊戲詳情」為公開，以便自動同步擁有庫與願望清單。</p>
+            <p className="pn-hint">
+              若希望 Steam 保持「私人」不被好友看到，這裡留空即可，請直接到「擁有庫」點「🔒 Steam 私人帳號匯入」同步！
+            </p>
           </div>
 
           <div className="pn-field" style={{ maxWidth: 200 }}>

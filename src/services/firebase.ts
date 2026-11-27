@@ -182,6 +182,25 @@ export const saveWishlistGame = async (uid: string, game: WishlistGameRecord): P
   );
 };
 
+export const saveWishlistGamesBatch = async (
+  uid: string,
+  games: WishlistGameRecord[]
+): Promise<void> => {
+  if (!db || games.length === 0) return;
+  for (let i = 0; i < games.length; i += 400) {
+    const batch = writeBatch(db);
+    for (const game of games.slice(i, i + 400)) {
+      const { id, ...rest } = game;
+      batch.set(
+        doc(db, 'users', uid, 'notify_wishlist', id),
+        { ...rest, updatedAt: Date.now() },
+        { merge: true }
+      );
+    }
+    await batch.commit();
+  }
+};
+
 export const deleteWishlistGame = async (uid: string, id: string): Promise<void> => {
   if (!db) throw new Error('Firebase 尚未初始化');
   await deleteDoc(doc(db, 'users', uid, 'notify_wishlist', id));

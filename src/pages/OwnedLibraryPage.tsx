@@ -8,28 +8,36 @@ import {
   type WishlistGameRecord,
 } from '../../shared/types';
 import { isGameOwned, normalizeGameTitle } from '../../shared/dedup';
-import { searchGamesOnline } from '../services/api';
+import { parseSteamUserdataJson } from '../../shared/steam-userdata';
+import { resolveSteamAppTitles, searchGamesOnline } from '../services/api';
 import { createDocId } from '../services/firebase';
 import { useUi } from '../theme';
 
 interface OwnedLibraryPageProps {
   ownedGames: OwnedGameRecord[];
+  wishlistGames: WishlistGameRecord[];
   gameRankGames: GameRankRecord[];
   onAddOwned: (game: OwnedGameRecord) => Promise<void>;
   onAddOwnedBatch: (games: OwnedGameRecord[]) => Promise<void>;
   onDeleteOwned: (id: string) => Promise<void>;
   onQuickAddWishlist: (game: WishlistGameRecord) => Promise<void>;
+  onAddWishlistBatch: (games: WishlistGameRecord[]) => Promise<void>;
 }
 
 type SourceFilter = 'ALL' | 'gamerank' | 'steam' | 'psn' | 'manual';
 
+const STEAM_HEADER_IMG = (appid: number) =>
+  `https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${appid}/header.jpg`;
+
 export function OwnedLibraryPage({
   ownedGames,
+  wishlistGames,
   gameRankGames,
   onAddOwned,
   onAddOwnedBatch,
   onDeleteOwned,
   onQuickAddWishlist,
+  onAddWishlistBatch,
 }: OwnedLibraryPageProps) {
   const ui = useUi();
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('ALL');
@@ -42,11 +50,19 @@ export function OwnedLibraryPage({
   const [results, setResults] = useState<GameSearchResult[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // 批次匯入視窗
+  // 批次文字匯入視窗
   const [batchOpen, setBatchOpen] = useState(false);
   const [batchPlatform, setBatchPlatform] = useState<GamePlatform>('SWITCH');
   const [batchText, setBatchText] = useState('');
   const [savingBatch, setSavingBatch] = useState(false);
+
+  // Steam 私人 JSON 匯入視窗（全程不需公開個人檔案！）
+  const [steamImportOpen, setSteamImportOpen] = useState(false);
+  const [steamJsonText, setSteamJsonText] = useState('');
+  const [importSteamOwned, setImportSteamOwned] = useState(true);
+  const [importSteamWishlist, setImportSteamWishlist] = useState(true);
+  const [importingSteam, setImportingSteam] = useState(false);
+  const [steamError, setSteamError] = useState<string | null>(null);
 
   const combinedRows = useMemo(() => {
     const ownedRows = ownedGames.map((g) => ({
@@ -56,7 +72,7 @@ export function OwnedLibraryPage({
       source: g.source as SourceFilter,
       imageUrl: g.imageUrl,
       readonly: false,
-      meta: g.source === 'steam' ? 'Steam 自動同步' : g.source === 'psn' ? 'PSN 自動同步' : '手動標記',
+      meta: g.source === 'steam' ? 'Steam 同步/匯入' : g.source === 'psn' ? 'PSN 自動同步' : '手動標記',
     }));
 
     const grRows = gameRankGames.map((g) => ({
@@ -207,19 +223,126 @@ export function OwnedLibraryPage({
     }
   };
 
+  // Steam 私人 JSON 即時解析預覽
+  const steamPreview = useMemo(() => {
+    if (!steamJsonText.trim()) return null;
+    try {
+      const parsed = parseSteamUserdataJson(steamJsonText);
+      const existingOwnedIds = new Set(
+        ownedGames.map((g) => g.externalIds?.steamAppId).filter((n): n is number => Boolean(n))
+      );
+      const existingWishIds = new Set(
+        wishlistGames.map((g) => g.externalIds?.steamAppId).filter((n): n is number => Boolean(n))
+      );
+      const ownedSet = new Set(parsed.ownedAppIds);
+
+      const newOwnedIds = parsed.ownedAppIds.filter((id) => !existingOwnedIds.has(id));
+      const newWishlistIds = parsed.wishlistAppIds.filter(
+        (id) => !existingWishIds.has(id) && !ownedSet.has(id) && !existingOwnedIds.has(id)
+      );
+
+      return {
+        error: null as string | null,
+        totalOwned: parsed.ownedAppIds.length,
+        totalWishlist: parsed.wishlistAppIds.length,
+        newOwnedIds,
+        newWishlistIds,
+      };
+    } catch (err) {
+      return {
+        error: (err as Error).message,
+        totalOwned: 0,
+        totalWishlist: 0,
+        newOwnedIds: [] as number[],
+        newWishlistIds: [] as number[],
+      };
+    }
+  }, [steamJsonText, ownedGames, wishlistGames]);
+
+  const handleSteamPrivateImport = async () => {
+    if (!steamPreview || steamPreview.error) return;
+    setImportingSteam(true);
+    setSteamError(null);
+    try {
+      const ownedToCreate = importSteamOwned ? steamPreview.newOwnedIds : [];
+      const wishToCreate = importSteamWishlist ? steamPreview.newWishlistIds : [];
+
+      // 優先解析願望清單（與前幾筆擁有庫）的繁中名稱；超過 40 筆的會由每日排程自動補齊
+      const idsToResolve = [...wishToCreate, ...ownedToCreate].slice(0, 40);
+      const titleMap = await resolveSteamAppTitles(idsToResolve).catch(() => ({} as Record<string, string>));
+      const now = Date.now();
+
+      const ownedRecords: OwnedGameRecord[] = ownedToCreate.map((appid, idx) => {
+        const title = titleMap[String(appid)] || `Steam App ${appid}`;
+        return {
+          id: `steam_${appid}`,
+          title,
+          normalizedTitle: normalizeGameTitle(title),
+          platform: 'PC',
+          source: 'steam',
+          externalIds: { steamAppId: appid },
+          imageUrl: STEAM_HEADER_IMG(appid),
+          addedAt: now + idx,
+        };
+      });
+
+      const wishRecords: WishlistGameRecord[] = wishToCreate.map((appid, idx) => {
+        const title = titleMap[String(appid)] || `Steam App ${appid}`;
+        return {
+          id: `steam_${appid}`,
+          title,
+          normalizedTitle: normalizeGameTitle(title),
+          platform: 'PC',
+          source: 'steam',
+          externalIds: { steamAppId: appid },
+          imageUrl: STEAM_HEADER_IMG(appid),
+          currentStoreUrl: `https://store.steampowered.com/app/${appid}/`,
+          addedAt: now + idx,
+        };
+      });
+
+      await Promise.all([
+        ownedRecords.length > 0 ? onAddOwnedBatch(ownedRecords) : Promise.resolve(),
+        wishRecords.length > 0 ? onAddWishlistBatch(wishRecords) : Promise.resolve(),
+      ]);
+
+      setSteamJsonText('');
+      setSteamImportOpen(false);
+      setNotice(
+        `🔒 Steam 私人匯入完成！新增 ${ownedRecords.length} 款已擁有遊戲、${wishRecords.length} 款願望清單（你的 Steam 檔案全程維持私人，排程將自動查價與補齊名稱）。`
+      );
+    } catch (err) {
+      setSteamError((err as Error).message);
+    } finally {
+      setImportingSteam(false);
+    }
+  };
+
   return (
     <>
       <section className={ui.panel}>
         <div className="pn-panel-title">
-          <span>✅ 快速標記已擁有遊戲（Switch / 實體片超友善介面）</span>
-          <button type="button" className={ui.btnWarn} onClick={() => setBatchOpen(true)}>
-            📋 批次貼上匯入清單
-          </button>
+          <span>✅ 快速標記已擁有遊戲（Switch / Steam 私人 / 實體片）</span>
+          <div className="pn-row">
+            <button
+              type="button"
+              className={ui.btnPrimary}
+              onClick={() => {
+                setSteamError(null);
+                setSteamImportOpen(true);
+              }}
+            >
+              🔒 Steam 私人帳號匯入
+            </button>
+            <button type="button" className={ui.btnWarn} onClick={() => setBatchOpen(true)}>
+              📋 批次貼上匯入清單
+            </button>
+          </div>
         </div>
 
         <p className="pn-hint" style={{ marginBottom: 10 }}>
-          Switch 沒有官方 API 可讀遊戲庫；你可以直接在這裡搜尋一鍵標記「已擁有」，或點右上角把整份清單一次貼上匯入。系統也會自動排除你在
-          GameRank 評分過的 {gameRankGames.length} 款遊戲！
+          Switch 可直接搜尋標記或批次貼上匯入；Steam 若想維持「私人」不被好友看到，點上方「🔒 Steam 私人帳號匯入」即可同步！系統亦自動排除你在
+          GameRank 評分過的 {gameRankGames.length} 款遊戲。
         </p>
 
         <div className="pn-row">
@@ -394,6 +517,115 @@ export function OwnedLibraryPage({
           </div>
         )}
       </section>
+
+      {steamImportOpen && (
+        <div className="pn-modal-backdrop" onClick={() => setSteamImportOpen(false)}>
+          <div className={`${ui.panel} pn-modal`} onClick={(e) => e.stopPropagation()}>
+            <div className="pn-panel-title">
+              <span>🔒 Steam 私人帳號一鍵匯入（免公開檔案）</span>
+              <button type="button" className={ui.btn} onClick={() => setSteamImportOpen(false)}>
+                關閉
+              </button>
+            </div>
+
+            <ol className="pn-hint" style={{ paddingLeft: 20, marginBottom: 12 }}>
+              <li>
+                先在這個瀏覽器登入{' '}
+                <a href="https://store.steampowered.com/login/" target="_blank" rel="noreferrer">
+                  Steam 商店網頁
+                </a>
+                （你的隱私設定全程維持「私人」完全不用改）。
+              </li>
+              <li>
+                打開官方私人資料網址：{' '}
+                <a
+                  href="https://store.steampowered.com/dynamicstore/userdata/"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  store.steampowered.com/dynamicstore/userdata/
+                </a>
+              </li>
+              <li>
+                在打開的頁面上按 <code>Ctrl+A</code> 全選 → <code>Ctrl+C</code> 複製 → 貼到下方框框即可！
+              </li>
+            </ol>
+
+            <div className="pn-field">
+              <label htmlFor="steam-json-input">貼上 Steam userdata JSON</label>
+              <textarea
+                id="steam-json-input"
+                rows={6}
+                className={ui.textarea}
+                placeholder='{"rgWishlist":[...],"rgOwnedApps":[...],...}'
+                value={steamJsonText}
+                onChange={(e) => setSteamJsonText(e.target.value)}
+              />
+            </div>
+
+            {steamPreview?.error && (
+              <div className="pn-alert err" style={{ marginTop: 10 }}>
+                {steamPreview.error}
+              </div>
+            )}
+
+            {steamError && (
+              <div className="pn-alert err" style={{ marginTop: 10 }}>
+                {steamError}
+              </div>
+            )}
+
+            {steamPreview && !steamPreview.error && (
+              <div style={{ marginTop: 10 }}>
+                <div className="pn-alert ok" style={{ marginBottom: 10 }}>
+                  解析成功！共偵測到已擁有 <strong>{steamPreview.totalOwned}</strong> 款、願望清單{' '}
+                  <strong>{steamPreview.totalWishlist}</strong> 款（將新增{' '}
+                  <strong>{steamPreview.newOwnedIds.length}</strong> 款已擁有、{' '}
+                  <strong>{steamPreview.newWishlistIds.length}</strong> 款願望清單）。
+                </div>
+                <div className="pn-row">
+                  <label className={`pn-check-chip ${importSteamOwned ? 'on' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={importSteamOwned}
+                      onChange={(e) => setImportSteamOwned(e.target.checked)}
+                    />
+                    匯入已擁有遊戲（+{steamPreview.newOwnedIds.length}）
+                  </label>
+                  <label className={`pn-check-chip ${importSteamWishlist ? 'on' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={importSteamWishlist}
+                      onChange={(e) => setImportSteamWishlist(e.target.checked)}
+                    />
+                    匯入願望清單（+{steamPreview.newWishlistIds.length}）
+                  </label>
+                </div>
+              </div>
+            )}
+
+            <div className="pn-row" style={{ marginTop: 14, justifyContent: 'flex-end' }}>
+              <button type="button" className={ui.btn} onClick={() => setSteamImportOpen(false)}>
+                取消
+              </button>
+              <button
+                type="button"
+                className={ui.btnSuccess}
+                disabled={
+                  importingSteam ||
+                  !steamPreview ||
+                  Boolean(steamPreview.error) ||
+                  ((!importSteamOwned || steamPreview.newOwnedIds.length === 0) &&
+                    (!importSteamWishlist || steamPreview.newWishlistIds.length === 0))
+                }
+                onClick={() => void handleSteamPrivateImport()}
+              >
+                {importingSteam ? '解析名稱並匯入中...' : '確認匯入至雲端'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {batchOpen && (
         <div className="pn-modal-backdrop" onClick={() => setBatchOpen(false)}>

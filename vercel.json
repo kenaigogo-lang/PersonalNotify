@@ -2,6 +2,7 @@
   "functions": {
     "api/game-search.ts": { "maxDuration": 20 },
     "api/line-test.ts": { "maxDuration": 15 },
+    "api/steam-resolve.ts": { "maxDuration": 25 },
     "api/health.ts": { "maxDuration": 15 }
   }
 }

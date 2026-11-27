@@ -41,3 +41,14 @@ export const searchGamesOnline = async (
   const data = await parseResponse<{ results: GameSearchResult[] }>(res);
   return data.results || [];
 };
+
+export const resolveSteamAppTitles = async (appIds: number[]): Promise<Record<string, string>> => {
+  if (appIds.length === 0) return {};
+  const res = await fetch('/api/steam-resolve', {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: JSON.stringify({ appIds }),
+  });
+  const data = await parseResponse<{ titles: Record<string, string> }>(res);
+  return data.titles || {};
+};

@@ -34,6 +34,7 @@ import {
   saveTrackedArtist,
   saveTrackedEvent,
   saveWishlistGame,
+  saveWishlistGamesBatch,
   seedStarterArtists,
   signInWithGoogle,
 } from './services/firebase';
@@ -189,7 +190,15 @@ function AppShell({
   const handleAddOwnedBatch = async (games: OwnedGameRecord[]) => {
     if (!user) return;
     await saveOwnedGamesBatch(user.uid, games);
-    setOwnedGames((prev) => [...games, ...prev]);
+    const newIds = new Set(games.map((g) => g.id));
+    setOwnedGames((prev) => [...games, ...prev.filter((g) => !newIds.has(g.id))]);
+  };
+
+  const handleAddWishlistBatch = async (games: WishlistGameRecord[]) => {
+    if (!user) return;
+    await saveWishlistGamesBatch(user.uid, games);
+    const newIds = new Set(games.map((g) => g.id));
+    setWishlistGames((prev) => [...games, ...prev.filter((g) => !newIds.has(g.id))]);
   };
 
   const handleDeleteOwned = async (id: string) => {
@@ -359,11 +368,13 @@ function AppShell({
             {tab === 'owned' && (
               <OwnedLibraryPage
                 ownedGames={ownedGames}
+                wishlistGames={wishlistGames}
                 gameRankGames={gameRankGames}
                 onAddOwned={handleAddOwned}
                 onAddOwnedBatch={handleAddOwnedBatch}
                 onDeleteOwned={handleDeleteOwned}
                 onQuickAddWishlist={handleSaveWishlist}
+                onAddWishlistBatch={handleAddWishlistBatch}
               />
             )}
 
