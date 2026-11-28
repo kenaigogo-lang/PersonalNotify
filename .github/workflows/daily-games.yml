@@ -1,9 +1,7 @@
 name: Daily Game Deals Sync & Notify
 
 on:
-  schedule:
-    # 台灣時間 (UTC+8) 每天 10:00 與 20:00 執行
-    - cron: '0 2,12 * * *'
+  # 定時排程改由 cron-job.org 透過 GitHub API 觸發 workflow_dispatch（台灣時間 10:00、20:00）
   workflow_dispatch:
     inputs:
       dry_run:

@@ -42,10 +42,20 @@ const sampleEvent: TrackedEvent = {
 };
 
 describe('LINE Flex Message builders', () => {
-  it('builds a single bubble when there is 1 deal', () => {
+  it('builds a single bubble with current price, regular price, and % OFF even on historical low', () => {
     const msg = buildGameDigestFlex([sampleDeal(0)]);
     expect(msg.type).toBe('flex');
     expect(msg.contents.type).toBe('bubble');
+    expect(msg.altText).toContain('NT$499');
+    expect(msg.altText).toContain('原價 NT$1,290');
+    expect(msg.altText).toContain('61% OFF');
+    const serialized = JSON.stringify(msg.contents);
+    expect(serialized).toContain('🔥 史低特價');
+    expect(serialized).toContain('61% OFF');
+    expect(serialized).toContain('NT$499');
+    expect(serialized).toContain('原價');
+    expect(serialized).toContain('NT$1,290');
+    expect(serialized).toContain('line-through');
   });
 
   it('caps carousel to max 10 bubbles (consuming only 1 LINE message quota)', () => {

@@ -345,11 +345,7 @@ export function ArtistsPage({
     <>
       <section className={ui.panel}>
         <div className="pn-panel-title">
-          <span>
-            {editingArtistId
-              ? '✏️ 編輯追蹤藝人'
-              : '🎤 新增追蹤藝人（只要輸入名字 → 選單確認）'}
-          </span>
+          <span>{editingArtistId ? '✏️ 編輯追蹤藝人' : '🎤 新增追蹤藝人'}</span>
           {artists.length === 0 && (
             <button
               type="button"
@@ -357,15 +353,14 @@ export function ArtistsPage({
               disabled={busy}
               onClick={() => void handleSeedStarterClick()}
             >
-              ⚡ 一鍵載入 LiSA / Aimer / milet / 陳忻玥
+              ⚡ 一鍵載入預設名單
             </button>
           )}
         </div>
         <p className="pn-hint" style={{ marginBottom: 12 }}>
-          GitHub Actions 每天 09:00 / 13:00 / 17:00 / 21:00 自動掃描 Google News RSS、KKTIX 與官方公告頁，並透過
-          Gemini 嚴格篩選「台灣北部（台北、新北、桃園、基隆、新竹）」可見本人的實體活動。
+          輸入名字即可搜尋確認；每天 09:00 / 13:00 / 17:00 / 21:00 自動掃描台灣北部（北北基桃竹）實體活動。
           {lastEventSyncAt
-            ? `（上次自動掃描：${new Date(lastEventSyncAt).toLocaleString('zh-TW')}）`
+            ? `（上次掃描：${new Date(lastEventSyncAt).toLocaleString('zh-TW')}）`
             : ''}
         </p>
 
@@ -382,24 +377,24 @@ export function ArtistsPage({
 
         {/* 步驟 1：只輸入名字 → 搜尋跳出候選名單確認 */}
         {!editingArtistId && (
-          <form onSubmit={(e) => void handleSearchArtists(e)}>
-            <div className="pn-row" style={{ alignItems: 'flex-end' }}>
-              <div className="pn-field" style={{ flex: 2 }}>
-                <label htmlFor="art-search-input">輸入藝人 / 歌手 / 演員 / 團體名稱</label>
-                <input
-                  id="art-search-input"
-                  className={ui.input}
-                  placeholder="只要打名字，例如：程予希、LiSA、佐藤健、告五人"
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                />
-              </div>
+          <form onSubmit={(e) => void handleSearchArtists(e)} className="pn-search-bar">
+            <div className="pn-field pn-search-bar-input">
+              <label htmlFor="art-search-input">輸入藝人 / 歌手 / 演員 / 團體名稱</label>
+              <input
+                id="art-search-input"
+                className={ui.input}
+                placeholder="例如：程予希、LiSA、佐藤健、告五人"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+              />
+            </div>
+            <div className="pn-search-bar-btns">
               <button
                 type="submit"
                 className={ui.btnPrimary}
                 disabled={searching || !searchInput.trim()}
               >
-                {searching ? '搜尋中...' : '🔍 搜尋並確認'}
+                {searching ? '搜尋中...' : '🔍 搜尋確認'}
               </button>
               <button
                 type="button"
@@ -411,7 +406,7 @@ export function ArtistsPage({
                   setShowAdvancedForm((v) => !v);
                 }}
               >
-                {showAdvancedForm ? '收起進階欄位' : '⚙️ 手動 / 進階填寫'}
+                {showAdvancedForm ? '收起欄位' : '⚙️ 手動填寫'}
               </button>
             </div>
           </form>
@@ -422,53 +417,54 @@ export function ArtistsPage({
           <div style={{ marginTop: 12 }}>
             {searchResults.length > 0 ? (
               <>
-                <div className="pn-hint" style={{ marginBottom: 6 }}>
-                  請點選確認你要追蹤的是哪一位（會自動帶入類型、中英文別名、防撞名排除詞與官網）：
+                <div className="pn-hint" style={{ marginBottom: 8 }}>
+                  請點選確認你要追蹤的是哪一位（將自動帶入別名與防撞名設定）：
                 </div>
-                <div className="pn-search-drop">
+                <div className="pn-search-drop pn-artist-drop">
                   {searchResults.map((cand) => {
                     const alreadySameName = artists.some(
                       (a) => a.name.toLowerCase() === cand.name.toLowerCase()
                     );
                     return (
-                      <div key={cand.id} className="pn-search-item">
-                        {cand.imageUrl ? (
-                          <img
-                            src={cand.imageUrl}
-                            alt={cand.name}
-                            className="pn-cover"
-                            style={{ width: 64, height: 64, objectFit: 'cover', objectPosition: 'top' }}
-                          />
-                        ) : (
-                          <div className="pn-cover empty" style={{ width: 64, height: 64 }}>
-                            {cand.name.slice(0, 2)}
-                          </div>
-                        )}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div className="pn-card-title" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                            <span>{cand.name}</span>
-                            {cand.disambiguation && (
-                              <span className="pn-badge warn">{cand.disambiguation}</span>
-                            )}
-                            <span className="pn-badge pri">{CATEGORY_LABEL[cand.category]}</span>
-                            {alreadySameName && <span className="pn-badge">同名已在名單</span>}
-                          </div>
-                          <div className="pn-meta" style={{ marginTop: 4 }}>
-                            <div>{cand.description}</div>
-                            {cand.extract && cand.extract !== cand.description && (
-                              <div style={{ opacity: 0.8, marginTop: 2 }}>{cand.extract}</div>
-                            )}
-                            {cand.aliases.length > 0 && (
-                              <div style={{ marginTop: 2 }}>
-                                自動帶入別名：{cand.aliases.join('、')}
-                              </div>
-                            )}
-                            {cand.excludeKeywords.length > 0 && (
-                              <div>防撞名排除詞：{cand.excludeKeywords.join('、')}</div>
-                            )}
+                      <div key={cand.id} className="pn-artist-cand">
+                        <div className="pn-artist-cand-main">
+                          {cand.imageUrl ? (
+                            <img
+                              src={cand.imageUrl}
+                              alt={cand.name}
+                              className="pn-cover pn-avatar"
+                            />
+                          ) : (
+                            <div className="pn-cover empty pn-avatar">
+                              {cand.name.slice(0, 2)}
+                            </div>
+                          )}
+                          <div className="pn-artist-cand-info">
+                            <div className="pn-artist-cand-title">
+                              <span className="pn-card-title">{cand.name}</span>
+                              {cand.disambiguation && (
+                                <span className="pn-badge warn">{cand.disambiguation}</span>
+                              )}
+                              <span className="pn-badge pri">{CATEGORY_LABEL[cand.category]}</span>
+                              {alreadySameName && <span className="pn-badge">已在名單</span>}
+                            </div>
+                            <div className="pn-meta" style={{ marginTop: 4 }}>
+                              <div>{cand.description}</div>
+                              {cand.extract && cand.extract !== cand.description && (
+                                <div className="pn-artist-extract">{cand.extract}</div>
+                              )}
+                              {cand.aliases.length > 0 && (
+                                <div style={{ marginTop: 3 }}>
+                                  別名：{cand.aliases.join('、')}
+                                </div>
+                              )}
+                              {cand.excludeKeywords.length > 0 && (
+                                <div>排除：{cand.excludeKeywords.join('、')}</div>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div className="pn-artist-cand-actions">
                           <button
                             type="button"
                             className={ui.btnSuccess}
@@ -483,7 +479,7 @@ export function ArtistsPage({
                             disabled={busy}
                             onClick={() => prefillFromCandidate(cand)}
                           >
-                            微調欄位
+                            微調
                           </button>
                         </div>
                       </div>
@@ -493,30 +489,32 @@ export function ArtistsPage({
               </>
             ) : (
               <div className="pn-alert warn">
-                找不到「{lastSearchedQuery}」的維基百科藝人資料（可能是獨立音樂人、新出道藝人或簡稱）。
+                找不到「{lastSearchedQuery}」的維基百科藝人資料（可能是獨立音樂人或簡稱）。
               </div>
             )}
 
-            <div className="pn-row" style={{ marginTop: 10, alignItems: 'center' }}>
+            <div className="pn-fallback-bar">
               <span className="pn-hint">不是以上任何一位？</span>
-              <button
-                type="button"
-                className={ui.btnSuccess}
-                disabled={busy || !lastSearchedQuery}
-                onClick={() => void handleQuickAddByNameOnly(lastSearchedQuery)}
-              >
-                + 直接以「{lastSearchedQuery}」加入追蹤
-              </button>
-              <button
-                type="button"
-                className={ui.btn}
-                onClick={() => {
-                  setName(lastSearchedQuery);
-                  setShowAdvancedForm(true);
-                }}
-              >
-                手動填寫別名/官網
-              </button>
+              <div className="pn-fallback-btns">
+                <button
+                  type="button"
+                  className={ui.btnSuccess}
+                  disabled={busy || !lastSearchedQuery}
+                  onClick={() => void handleQuickAddByNameOnly(lastSearchedQuery)}
+                >
+                  + 直接以「{lastSearchedQuery}」加入
+                </button>
+                <button
+                  type="button"
+                  className={ui.btn}
+                  onClick={() => {
+                    setName(lastSearchedQuery);
+                    setShowAdvancedForm(true);
+                  }}
+                >
+                  手動填寫
+                </button>
+              </div>
             </div>
           </div>
         )}

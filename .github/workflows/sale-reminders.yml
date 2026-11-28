@@ -1,9 +1,7 @@
 name: Ticket Sale Countdown Reminders
 
 on:
-  schedule:
-    # 每小時第 5 分鐘輕量檢查 Firestore（零外部爬蟲呼叫）
-    - cron: '5 * * * *'
+  # 定時排程改由 cron-job.org 透過 GitHub API 觸發 workflow_dispatch（每小時整點）
   workflow_dispatch:
     inputs:
       dry_run:

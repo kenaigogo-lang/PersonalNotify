@@ -202,7 +202,7 @@ html[data-theme='nes'] {
 
   .pn-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
     gap: 14px;
   }
 
@@ -427,5 +427,273 @@ html[data-theme='nes'] {
     max-height: 88vh;
     overflow-y: auto;
     background: var(--paper);
+  }
+
+  .pn-meta {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .pn-search-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px;
+  }
+
+  .pn-search-bar-input {
+    flex: 1 1 280px;
+  }
+
+  .pn-search-bar-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .pn-artist-drop {
+    max-height: 440px;
+  }
+
+  .pn-artist-cand {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px;
+    border-bottom: 2px dashed #d1d5db;
+  }
+
+  .pn-artist-cand:last-child {
+    border-bottom: 0;
+  }
+
+  .pn-artist-cand-main {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .pn-avatar {
+    width: 64px;
+    height: 64px;
+    object-fit: cover;
+    object-position: top;
+    flex: none;
+  }
+
+  .pn-artist-cand-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .pn-artist-cand-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .pn-artist-extract {
+    opacity: 0.85;
+    margin-top: 3px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .pn-artist-cand-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: none;
+  }
+
+  .pn-fallback-bar {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .pn-fallback-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  @media (max-width: 640px) {
+    .pn-top {
+      padding: 10px 10px 12px;
+    }
+
+    .pn-util {
+      font-size: 12px;
+      gap: 6px 10px;
+    }
+
+    .pn-brand p {
+      font-size: 12px;
+    }
+
+    .pn-nav {
+      gap: 6px;
+    }
+
+    .pn-nav button {
+      flex: 1 1 calc(33% - 6px);
+      font-size: 12px;
+      padding: 6px 6px;
+      margin: 0 !important;
+      text-align: center;
+    }
+
+    .pn-wrap {
+      padding: 12px 10px 36px;
+      gap: 12px;
+    }
+
+    .pn-panel {
+      padding: 12px !important;
+    }
+
+    .pn-panel-title {
+      font-size: 15px;
+      margin-bottom: 10px;
+    }
+
+    .pn-stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .pn-stat {
+      padding: 10px;
+    }
+
+    .pn-stat-val {
+      font-size: 18px;
+    }
+
+    .pn-grid {
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    .pn-field {
+      min-width: 0;
+      width: 100%;
+      max-width: none !important;
+      flex: 1 1 100% !important;
+    }
+
+    .nes-input,
+    .nes-textarea,
+    .nes-select select {
+      font-size: 16px !important;
+      width: 100%;
+    }
+
+    .pn-search-bar {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+    }
+
+    .pn-search-bar-input {
+      flex: none;
+      width: 100%;
+    }
+
+    .pn-search-bar-btns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      width: 100%;
+    }
+
+    .pn-search-bar-btns .nes-btn {
+      width: 100%;
+      margin: 0 !important;
+      padding: 8px 6px;
+      font-size: 13px;
+    }
+
+    .pn-artist-drop {
+      max-height: none;
+      overflow-y: visible;
+    }
+
+    .pn-artist-cand {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+      padding: 12px 10px;
+    }
+
+    .pn-avatar {
+      width: 56px;
+      height: 56px;
+    }
+
+    .pn-artist-cand-actions {
+      flex-direction: row;
+      width: 100%;
+      gap: 8px;
+    }
+
+    .pn-artist-cand-actions .nes-btn {
+      margin: 0 !important;
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+
+    .pn-artist-cand-actions .nes-btn:first-child {
+      flex: 1;
+    }
+
+    .pn-fallback-bar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .pn-fallback-btns {
+      width: 100%;
+      gap: 8px;
+    }
+
+    .pn-fallback-btns .nes-btn {
+      margin: 0 !important;
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+
+    .pn-fallback-btns .nes-btn:first-child {
+      flex: 1;
+    }
+
+    .pn-search-item {
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+
+    .pn-search-item > button {
+      width: 100%;
+      margin: 0 !important;
+    }
+
+    .pn-actions {
+      gap: 6px;
+    }
+
+    .pn-actions .nes-btn {
+      margin: 0 !important;
+      padding: 6px 10px;
+    }
   }
 }

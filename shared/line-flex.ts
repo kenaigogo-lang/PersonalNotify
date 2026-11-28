@@ -11,38 +11,97 @@ const formatTwd = (amount: number): string => `NT$${Math.round(amount).toLocaleS
 
 /** 單張遊戲特價 Flex Bubble */
 export const buildDealBubble = (deal: DealCardItem, appBaseUrl?: string): Record<string, unknown> => {
-  const badgeText = deal.isHistoricalLow
-    ? '🔥 史低特價'
-    : `-${Math.round(deal.discountPercent)}% OFF`;
+  const computedDiscount =
+    deal.discountPercent > 0
+      ? Math.round(deal.discountPercent)
+      : deal.regularPriceTwd && deal.regularPriceTwd > deal.currentPriceTwd
+        ? Math.round(((deal.regularPriceTwd - deal.currentPriceTwd) / deal.regularPriceTwd) * 100)
+        : 0;
 
-  const badgeColor = deal.isHistoricalLow ? '#D9264E' : '#209CEE';
   const platformText = deal.region
     ? `${PLATFORM_LABEL[deal.platform]} (${deal.region})`
     : PLATFORM_LABEL[deal.platform];
+
+  const badgePills: Record<string, unknown>[] = [];
+  if (deal.isHistoricalLow) {
+    badgePills.push({
+      type: 'box',
+      layout: 'horizontal',
+      backgroundColor: '#D9264E',
+      cornerRadius: '4px',
+      paddingTop: '3px',
+      paddingBottom: '3px',
+      paddingStart: '8px',
+      paddingEnd: '8px',
+      flex: 0,
+      contents: [
+        {
+          type: 'text',
+          text: '🔥 史低特價',
+          size: 'xs',
+          weight: 'bold',
+          color: '#FFFFFF',
+          flex: 0,
+        },
+      ],
+    });
+  }
+  if (computedDiscount > 0) {
+    badgePills.push({
+      type: 'box',
+      layout: 'horizontal',
+      backgroundColor: '#209CEE',
+      cornerRadius: '4px',
+      paddingTop: '3px',
+      paddingBottom: '3px',
+      paddingStart: '8px',
+      paddingEnd: '8px',
+      flex: 0,
+      contents: [
+        {
+          type: 'text',
+          text: `${computedDiscount}% OFF`,
+          size: 'xs',
+          weight: 'bold',
+          color: '#FFFFFF',
+          flex: 0,
+        },
+      ],
+    });
+  }
+  if (badgePills.length === 0) {
+    badgePills.push({
+      type: 'box',
+      layout: 'horizontal',
+      backgroundColor: '#059669',
+      cornerRadius: '4px',
+      paddingTop: '3px',
+      paddingBottom: '3px',
+      paddingStart: '8px',
+      paddingEnd: '8px',
+      flex: 0,
+      contents: [
+        {
+          type: 'text',
+          text: '🎯 達目標價',
+          size: 'xs',
+          weight: 'bold',
+          color: '#FFFFFF',
+          flex: 0,
+        },
+      ],
+    });
+  }
+
+  const hasRegularPrice =
+    typeof deal.regularPriceTwd === 'number' && deal.regularPriceTwd > deal.currentPriceTwd;
 
   const bodyContents: Record<string, unknown>[] = [
     {
       type: 'box',
       layout: 'horizontal',
-      spacing: 'sm',
-      contents: [
-        {
-          type: 'text',
-          text: badgeText,
-          size: 'xs',
-          weight: 'bold',
-          color: '#FFFFFF',
-          align: 'center',
-          gravity: 'center',
-          flex: 0,
-        },
-      ],
-      backgroundColor: badgeColor,
-      cornerRadius: '4px',
-      paddingAll: '4px',
-      paddingStart: '8px',
-      paddingEnd: '8px',
-      width: '108px',
+      spacing: 'xs',
+      contents: badgePills,
     },
     {
       type: 'text',
@@ -75,14 +134,14 @@ export const buildDealBubble = (deal: DealCardItem, appBaseUrl?: string): Record
           color: '#D9264E',
           flex: 0,
         },
-        ...(deal.regularPriceTwd && deal.regularPriceTwd > deal.currentPriceTwd
+        ...(computedDiscount > 0
           ? [
               {
                 type: 'text',
-                text: formatTwd(deal.regularPriceTwd),
-                size: 'xs',
-                color: '#9CA3AF',
-                decoration: 'line-through',
+                text: `-${computedDiscount}% OFF`,
+                size: 'sm',
+                weight: 'bold',
+                color: '#209CEE',
                 flex: 0,
               },
             ]
@@ -90,6 +149,32 @@ export const buildDealBubble = (deal: DealCardItem, appBaseUrl?: string): Record
       ],
     },
   ];
+
+  if (hasRegularPrice) {
+    bodyContents.push({
+      type: 'box',
+      layout: 'baseline',
+      spacing: 'xs',
+      margin: 'xs',
+      contents: [
+        {
+          type: 'text',
+          text: '原價',
+          size: 'xs',
+          color: '#6B7280',
+          flex: 0,
+        },
+        {
+          type: 'text',
+          text: formatTwd(deal.regularPriceTwd!),
+          size: 'xs',
+          color: '#9CA3AF',
+          decoration: 'line-through',
+          flex: 0,
+        },
+      ],
+    });
+  }
 
   if (typeof deal.historicalLowPriceTwd === 'number' && deal.historicalLowPriceTwd > 0) {
     const diff = Math.round(deal.currentPriceTwd - deal.historicalLowPriceTwd);
@@ -193,9 +278,26 @@ export const buildGameDigestFlex = (deals: DealCardItem[], appBaseUrl?: string):
   const topDeals = deals.slice(0, 10);
   const bubbles = topDeals.map((deal) => buildDealBubble(deal, appBaseUrl));
 
+  let altText = `🎮 PersonalNotify 今日特價：${topDeals.length} 款願望清單遊戲降價！`;
+  if (topDeals.length === 1) {
+    const d = topDeals[0];
+    const pct =
+      d.discountPercent > 0
+        ? Math.round(d.discountPercent)
+        : d.regularPriceTwd && d.regularPriceTwd > d.currentPriceTwd
+          ? Math.round(((d.regularPriceTwd - d.currentPriceTwd) / d.regularPriceTwd) * 100)
+          : 0;
+    const parts = [formatTwd(d.currentPriceTwd)];
+    if (d.regularPriceTwd && d.regularPriceTwd > d.currentPriceTwd) {
+      parts.push(`原價 ${formatTwd(d.regularPriceTwd)}`);
+    }
+    if (pct > 0) parts.push(`${pct}% OFF`);
+    altText = `🎮 ${d.title.slice(0, 40)} 特價 ${parts.join('｜')}`.slice(0, 180);
+  }
+
   return {
     type: 'flex',
-    altText: `🎮 PersonalNotify 今日特價：${topDeals.length} 款願望清單遊戲降價！`,
+    altText,
     contents:
       bubbles.length === 1
         ? bubbles[0]
